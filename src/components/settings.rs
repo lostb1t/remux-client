@@ -7,7 +7,6 @@ use nsh_icon_phosphor::Phosphor;
 
 use crate::hooks::{self, server};
 use crate::media::Library;
-use crate::nav::{self, Route};
 use crate::session;
 use crate::ui::{self, FieldKind, Size, Variant};
 
@@ -140,10 +139,6 @@ fn main_page() -> impl IntoElement {
                 rows.push(ui::menu_row(None, "Playback", true, || go(Page::Playback)));
             }
             rows.push(ui::menu_row(None, "Library order", true, || go(Page::Libraries)));
-            rows.push(ui::menu_row(None, "Components", true, || {
-                close();
-                nav::push(Route::Gallery);
-            }));
             ui::menu_group(rows).into_element()
         }))
         // The other accounts of this device, and a way to sign in as one that is not there yet.

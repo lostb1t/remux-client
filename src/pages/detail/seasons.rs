@@ -13,6 +13,16 @@ use crate::server::MediaQuery;
 use crate::tv_focus;
 use crate::ui::{self, tokens::{group, is_tv, motion, track}};
 
+/// The season a show's page is to open at, when it was opened for one (a season, an episode's
+/// link to its show): the show and the season.
+#[derive(Clone, Copy, Default, PartialEq)]
+struct OpenAt(Option<(Uuid, Uuid)>);
+
+/// The page of `series` that opens next opens at `season`.
+pub fn open_at(series: Uuid, season: Uuid) {
+    global::<OpenAt>().set(OpenAt(Some((series, season))));
+}
+
 /// An episode card's width.
 const EPISODE_WIDTH: f32 = 220.0;
 
@@ -20,6 +30,11 @@ const EPISODE_WIDTH: f32 = 220.0;
 /// rows of the page, for the remote.
 pub fn seasons(series: Media, place: usize) -> impl IntoElement {
     let series_id = series.id;
+    // Opened for a season: that one, once (the next page of this show opens as usual).
+    let wanted = untracked(|| global::<OpenAt>().get().0).filter(|(show, _)| *show == series_id).map(|(_, season)| season);
+    if wanted.is_some() {
+        global::<OpenAt>().set(OpenAt(None));
+    }
     let seasons = resource(|| Some(()), move |(), _| async move {
         // All of them: a long show has more than a page of the default 25 (Remux misses those).
         let query = MediaQuery::builder().parent(series_id).types(vec![MediaType::Season]).limit(200).build();
@@ -39,7 +54,7 @@ pub fn seasons(series: Media, place: usize) -> impl IntoElement {
         if list.is_empty() {
             return view().into_element();
         }
-        let current = next.and_then(|episode| episode.season_id).filter(|id| list.iter().any(|season| season.id == *id));
+        let current = wanted.or(next.and_then(|episode| episode.season_id)).filter(|id| list.iter().any(|season| season.id == *id));
         untracked(move || season_episodes(list, current, place).into_element())
     }))
 }
@@ -52,7 +67,10 @@ fn season_episodes(seasons: Vec<Media>, current: Option<Uuid>, place: usize) -> 
         seasons.iter().map(|season| (season.id, &*Box::leak(season.title.clone().into_boxed_str()))).collect();
     view()
         .gap_4()
-        .child(scroll().horizontal().scrollbar(false).child(view().px_6().child(ui::chips(options, move || selected.get(), move |season| selected.set(season)))))
+        .child({
+            let row = element_ref();
+            scroll().element_ref(&row).horizontal().scrollbar(false).child(view().px_6().child(ui::chips(options, move || selected.get(), move |season| selected.set(season), Some(row))))
+        })
         .child(dynamic(move || {
             let season = selected.get();
             untracked(move || episodes(season, place, focus).into_element())

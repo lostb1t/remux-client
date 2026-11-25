@@ -108,6 +108,8 @@ pub fn discover() -> AnyElement {
                     return view().flex_1().items_center().justify_center().child(ui::spinner()).into_element();
                 }
                 let state = filter().get();
+                // Made again when it is pulled down to refresh.
+                crate::refresh::pulls();
                 let chosen = chosen();
                 let offered = offered();
                 let sort = sort();
@@ -126,7 +128,7 @@ pub fn discover() -> AnyElement {
                     } else {
                         // A row for each kind: the kinds are looked for in different places, have
                         // different pictures, and cannot be put in one order.
-                        scroll()
+                        crate::refresh::refreshable(scroll())
                             .element_ref(&scroll_ref)
                             .on_scroll(crate::tv_focus::root_scroll(crate::nav::Place::Discover, scroll_ref))
                             .flex_1()

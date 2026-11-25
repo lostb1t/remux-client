@@ -9,7 +9,7 @@ use nsh_icon_phosphor::Phosphor;
 
 use crate::nav::{self, Place, Route};
 use crate::tv_focus;
-use crate::pages::{detail::detail, discover, gallery::gallery, home::home, library, live, music};
+use crate::pages::{detail::detail, discover, home::home, library, live, music};
 use crate::ui::{self, tokens::{avatar as avatar_color, is_tv, motion}};
 
 /// A place's icon in the tab bar.
@@ -35,7 +35,6 @@ fn place_page(place: Place) -> AnyElement {
 /// The page of a route opened over a place.
 fn route_page(route: &Route) -> AnyElement {
     match route {
-        Route::Gallery => gallery(),
         Route::MediaDetail { id, .. } => detail(*id),
         Route::Library { id, name } => library::library(*id, name.clone()),
         Route::Collection { id, name } => library::collection(*id, name.clone()),

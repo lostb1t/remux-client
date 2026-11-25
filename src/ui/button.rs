@@ -5,7 +5,11 @@ use nsh_core::element::ImageSrc;
 use nsh_core::prelude::*;
 use nsh_icon::{icon, labeled_icon};
 
-use super::tokens::{is_tv, motion};
+use super::tokens::motion;
+
+/// How far a focused button's ring reaches out of it (3 points from it, 3 wide): the room to keep
+/// between buttons in a row on a TV, which a ring may not cross into the next.
+pub const FOCUS_RING_ROOM: f32 = 6.0;
 
 /// What a button is for.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -54,10 +58,11 @@ fn base(variant: Variant, size: Size) -> nsh_base::ButtonElement {
         .ease_out()
         .active(|s| s.scale(motion::PRESS_SCALE).opacity(0.9))
         .hover(|s| s.opacity(0.9))
-        // A remote's focus: the button turns white and grows, as in Remux.
+        // A remote's focus: the button turns white, with a ring around it. It does not grow: grown
+        // with its ring it reached over the button beside it (the ring keeps to the room of
+        // `FOCUS_RING_ROOM` around the button).
         .focus_visible(move |s| {
-            s.scale(if is_tv() { 1.05 } else { 1.0 })
-                .bg(theme().primary)
+            s.bg(theme().primary)
                 .text_color(theme().primary_foreground)
                 .outline(px(3.0))
                 .outline_offset(px(3.0))

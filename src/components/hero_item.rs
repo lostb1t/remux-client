@@ -10,7 +10,7 @@ use nsh_icon::icon;
 use nsh_icon_phosphor::Phosphor;
 
 use crate::hooks::server;
-use crate::media::{ImageType, Media, RatingSource};
+use crate::media::{ImageType, Media, MediaType, RatingSource};
 use crate::tv_focus;
 use crate::ui::{self, tokens::{is_tv, is_wide, rating_star, secondary_text}};
 
@@ -81,6 +81,13 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
             });
         }
     };
+    // An episode's page leads to its show, at the episode's season (Remux's link over the title).
+    let show_link = element_ref();
+    let show = match (kind, &media.media_type, media.series_id, media.series_name.clone()) {
+        (HeroKind::Page, MediaType::Episode, Some(series), Some(name)) => Some((series, name, media.season_id, media.season_number)),
+        _ => None,
+    };
+    let has_show_link = show.is_some();
     let play_label = if media.progress().is_some() { "Resume" } else { "Play" };
     // A show plays its next episode, from its page (where it is known); else the title itself.
     let play = {
@@ -152,6 +159,7 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
                 .when(wide, |v| v.items_start().pl(px(if is_tv() { 72.0 } else { 24.0 })).max_w(px(768.0)))
                 .when(!wide, |v| v.items_center())
                 .pointer_events(PointerEvents::BoxNone)
+                .child(show.map(|(series, name, season, number)| show_pill(show_link, series, name, season, number)))
                 .child(
                     view()
                         .gap_2()
@@ -192,7 +200,9 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
                     view()
                         .flex_row()
                         .items_center()
-                        .gap(px(10.0))
+                        // On a TV room for the focused one's ring on either side of it, clear of the
+                        // next button.
+                        .gap(px(if is_tv() { 2.0 * crate::ui::FOCUS_RING_ROOM + 4.0 } else { 10.0 }))
                         // Up goes to the menu, down to the first row (Remux), not to the dots
                         // under the buttons that Android would find first.
                         .when(is_tv(), |v| {
@@ -200,8 +210,14 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
                                 "ArrowDown" => {
                                     focus.to_row_after(None);
                                 }
+                                // Up: the link to the show where there is one (a page over a place has
+                                // no menu), else the menu.
                                 "ArrowUp" => {
-                                    tv_focus::to_menu();
+                                    if has_show_link {
+                                        show_link.focus();
+                                    } else {
+                                        tv_focus::to_menu();
+                                    }
                                 }
                                 _ => {}
                             })
@@ -238,6 +254,40 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
                 )
                 .child((!wide).then(|| ratings(&media))),
         )
+}
+
+/// "The Simpsons · Season 38 ›" over an episode's title: its show's page, open at the season.
+/// (Down from it is Android's own: the buttons under it.)
+fn show_pill(me: ElementRef, series: uuid::Uuid, name: String, season: Option<uuid::Uuid>, number: Option<i64>) -> impl IntoElement {
+    let label = match number {
+        Some(number) => format!("{name} · Season {number}"),
+        None => name,
+    };
+    nsh_base::button()
+        .element_ref(&me)
+        .self_center()
+        .when(is_wide(), |b| b.self_start())
+        .flex_row()
+        .items_center()
+        .gap_1()
+        .px_3()
+        .py(px(6.0))
+        .rounded_full()
+        .bg(crate::ui::tokens::scrim())
+        .border_1()
+        .border_color(theme().border)
+        .accessibility_label(label.clone())
+        .focus_visible(|s| s.bg(theme().primary).text_color(theme().primary_foreground))
+        .text_color(theme().foreground)
+        .on_press(move || {
+            crate::tv_focus::pressed(me);
+            if let Some(season) = season {
+                crate::pages::detail::seasons::open_at(series, season);
+            }
+            crate::nav::push(crate::nav::Route::MediaDetail { media_type: MediaType::Series, id: series });
+        })
+        .child(text(label).text_sm().font_weight(FontWeight::SEMIBOLD).number_of_lines(1))
+        .child(icon(Phosphor::CaretRight).size(px(14.0)))
 }
 
 /// "Movie · 2026 · Adventure · Horror": what the hero says under the title (Remux's `subtitle`).

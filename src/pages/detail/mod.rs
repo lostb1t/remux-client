@@ -2,7 +2,7 @@
 //! episodes for a show, and its cast. It opens with what a list loaded of the title, and the page's
 //! own request (with the cast) replaces that when it is there.
 
-mod seasons;
+pub mod seasons;
 
 use nsh_base::{button, theme};
 use nsh_core::prelude::*;
@@ -30,7 +30,7 @@ pub fn detail(id: Uuid) -> AnyElement {
     focus.set_page(page);
     // Loaded again when the title was watched, marked or favorited.
     let details = resource(
-        move || Some(crate::user_data::last().ids.contains(&id)),
+        move || Some((crate::user_data::last().ids.contains(&id), crate::refresh::pulls())),
         move |_, _| async move { server().media_details(id).await.map_err(|error| error.to_string()) },
     );
     let item = move || details.get().flatten().or_else(|| media::recent(id));
@@ -39,7 +39,7 @@ pub fn detail(id: Uuid) -> AnyElement {
             .flex_1()
             .bg(theme().background)
             .child(
-                scroll().flex_1().scrollbar(false).element_ref(&page).child(dynamic(move || match item() {
+                crate::refresh::refreshable(scroll()).flex_1().scrollbar(false).element_ref(&page).child(dynamic(move || match item() {
                     Some(item) => untracked(move || content(item, details.get().flatten().is_some()).into_element()),
                     None => match details.error() {
                         Some(error) => ui::empty(format!("Could not load it: {error}")).pt(px(120.0)).into_element(),

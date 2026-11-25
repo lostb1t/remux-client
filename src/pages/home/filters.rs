@@ -62,7 +62,7 @@ fn chips() -> impl IntoElement {
         if has_music.get().unwrap_or(false) {
             options.push(("music", "Music"));
         }
-        untracked(move || ui::chips(options, selected, choose).into_element())
+        untracked(move || ui::chips(options, selected, choose, None).into_element())
     })
 }
 

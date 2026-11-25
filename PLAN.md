@@ -9,7 +9,7 @@ here, not shared. This file is where the port stands (2026-11-25) and what is le
 **Foundations.** Remux's data layer (`media.rs`, `sdks.rs` over NSH's `fetch`, `server/`,
 `session.rs` on NSH's storage, `user_data.rs`, `settings.rs`, `tmdb.rs`, `capabilities.rs`,
 `player/`, `cast/`), the four places with their pages (`nav.rs`, `shell.rs`), and the app's `ui`
-layer on NSH's elements (`src/ui`, shown on the gallery page under Settings > Components).
+layer on NSH's elements (`src/ui`).
 `src/config.rs` (not in git, see `config.example.rs`) signs a development build in; without it the
 app starts at its login page (`build.rs`).
 

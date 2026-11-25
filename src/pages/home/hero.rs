@@ -55,6 +55,15 @@ pub fn hero(types: Vec<crate::media::MediaType>, on_open: impl Fn(Media) + Copy 
         .w_full()
         .h(px(hero_height()))
         .bg(theme().background)
+        // Pulled down to refresh on a phone: the carousel takes the drags that start on it, so
+        // the page's own pull never starts there; a pull down of its own does what it would.
+        .when(!is_tv(), |v| {
+            v.pan_activation(PanActivation::default().direction(PanDirection::Down)).on_pan_end(|event: &PanEvent| {
+                if !event.cancelled && event.translation.y.0 > 80.0 {
+                    crate::refresh::pull();
+                }
+            })
+        })
         .child(when(move || items.get().is_none(), || ui::skeleton_box(relative(1.0).into(), relative(1.0).into()).rounded_none()))
         .child(when(move || !list().is_empty(), move || {
             if is_tv() { tv_hero(list, index, on_open).into_element() } else { swiped_hero(list, index, on_open).into_element() }

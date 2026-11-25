@@ -49,8 +49,6 @@ pub enum Route {
     LiveGuide,
     Favorites,
     Library { id: Uuid, name: String },
-    /// Every component of the `ui` layer (Design Guides): from the avatar, until Settings is ported.
-    Gallery,
 }
 
 impl Route {
@@ -68,7 +66,6 @@ impl Route {
             Route::LiveGuide => "live/guide".into(),
             Route::Favorites => "favorites".into(),
             Route::Library { id, .. } => format!("library/{id}"),
-            Route::Gallery => "gallery".into(),
         }
     }
 
@@ -86,7 +83,6 @@ impl Route {
             Route::LiveChannels => "Channels".into(),
             Route::LiveGuide => "Guide".into(),
             Route::Favorites => "Favorites".into(),
-            Route::Gallery => "Components".into(),
         }
     }
 }
@@ -155,6 +151,12 @@ pub fn open_media(media: crate::media::Media) {
     // A song plays (a card of one, on Home or in a search).
     if media.media_type == MediaType::Audio {
         crate::music::play(vec![media], 0);
+        return;
+    }
+    // A season is its show's page, open at it (Remux has no page of a season's own).
+    if let (MediaType::Season, Some(series)) = (&media.media_type, media.series_id) {
+        crate::pages::detail::seasons::open_at(series, id);
+        push(Route::MediaDetail { media_type: MediaType::Series, id: series });
         return;
     }
     push(match media.media_type {

@@ -14,22 +14,27 @@ pub fn home() -> AnyElement {
     let focus = crate::tv_focus::Scope::provide();
     let page = element_ref();
     focus.set_page(page);
-    crate::stack::page(scroll()
+    crate::stack::page(crate::refresh::refreshable(scroll())
         .element_ref(&page)
         .on_scroll(crate::tv_focus::root_scroll(nav::Place::Home, page))
         .flex_1()
         .scrollbar(false)
-        .child(
-            view()
-                .gap_6()
-                // The hero is for the films and shows; music has rows of its own.
-                .child(dynamic(move || {
-                    let music = filters::music();
-                    let types = filters::home_types();
-                    untracked(move || if music { view().into_element() } else { hero::hero(types, on_open).into_element() })
-                }))
-                .child(rows::rows(on_open)),
-        )
+        // Made again when the page is pulled down to refresh.
+        .child(dynamic(move || {
+            crate::refresh::pulls();
+            untracked(move || {
+                view()
+                    .gap_6()
+                    // The hero is for the films and shows; music has rows of its own.
+                    .child(dynamic(move || {
+                        let music = filters::music();
+                        let types = filters::home_types();
+                        untracked(move || if music { view().into_element() } else { hero::hero(types, on_open).into_element() })
+                    }))
+                    .child(rows::rows(on_open))
+                    .into_element()
+            })
+        }))
         // On a phone, the filters over the top of the page (a TV has them in its menu).
         .child((!crate::ui::tokens::is_tv()).then(filters::home_menu)))
 }

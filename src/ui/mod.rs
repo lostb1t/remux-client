@@ -13,7 +13,7 @@ pub mod spinner_android;
 mod surface;
 pub mod tokens;
 
-pub use button::{icon_button, text_button, Size, Variant};
+pub use button::{icon_button, text_button, Size, Variant, FOCUS_RING_ROOM};
 pub use chips::chips;
 pub use feedback::{empty, spinner};
 pub use field::{field, field_of, FieldKind};

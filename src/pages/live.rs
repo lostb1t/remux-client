@@ -139,11 +139,17 @@ fn program_row(title: String, load: impl Fn() -> std::pin::Pin<Box<dyn std::futu
 pub fn live_tv() -> AnyElement {
     let scroll_ref = element_ref();
     page(
-        scroll()
+        crate::refresh::refreshable(scroll())
             .element_ref(&scroll_ref)
             .on_scroll(crate::tv_focus::root_scroll(crate::nav::Place::LiveTv, scroll_ref))
             .flex_1()
-            .child(
+            .child(dynamic(move || { crate::refresh::pulls(); untracked(|| live_content().into_element()) }))
+    )
+}
+
+/// What Live TV shows, made again on a pull.
+fn live_content() -> impl IntoElement {
+    view().child(
                 view()
                     .pb(crate::ui::tokens::bottom_room(140.0))
                     .gap_6()
@@ -160,8 +166,7 @@ pub fn live_tv() -> AnyElement {
                         })
                     })),
             )
-            .child(program_sheet()),
-    )
+            .child(program_sheet())
 }
 
 /// The channels, as a grid.

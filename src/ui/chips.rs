@@ -6,28 +6,35 @@ use nsh_core::prelude::*;
 
 use super::tokens::{glass, motion};
 
-/// Chips for `options`, the one `selected` says chosen; `on_select` with the one pressed.
+/// Chips for `options`, the one `selected` says chosen; `on_select` with the one pressed. In a
+/// sideways scroll view `row`, the chosen one is scrolled to as the chips are made: of a long row
+/// (a show's 38 seasons) it may be far to the right.
 pub fn chips<T: Clone + PartialEq + 'static>(
     options: Vec<(T, &'static str)>,
     selected: impl Fn() -> T + Copy + 'static,
     on_select: impl Fn(T) + Copy + 'static,
+    row: Option<ElementRef>,
 ) -> impl IntoElement {
     tabs().flex_row().gap_2().children(options.into_iter().map(move |(value, label)| {
         let chosen = {
             let value = value.clone();
             move || selected() == value
         };
-        let shown = element_ref();
-        // The chosen one in view when the chips are made: of a long row (a show's 38 seasons)
-        // it may be far to the right.
-        if chosen() {
-            set_timeout(std::time::Duration::from_millis(150), move || {
-                shown.reveal(nsh_core::RevealOptions::default().vertical(nsh_core::ScrollAlignment::Nearest).horizontal(nsh_core::ScrollAlignment::Center).animated(false));
-            });
-        }
+        // Only the row scrolls, once, to where the chosen one was laid out: `reveal` would scroll
+        // the page too.
+        let scrolled = stored(false);
+        let first_chosen = chosen();
         tab()
             .accessibility_label(label.clone())
-            .element_ref(&shown)
+            .on_layout(move |bounds: &Bounds<Points>| {
+                let (Some(row), true) = (row, first_chosen) else { return };
+                if scrolled.with(|done| *done) {
+                    return;
+                }
+                scrolled.with(|done| *done = true);
+                let middle = bounds.origin.x.0 + bounds.size.width.0 / 2.0 - window().width.0 / 2.0;
+                row.scroll_to_offset(px(middle.max(0.0)), false);
+            })
             .selected(chosen.clone())
             .on_press(move |_: &()| on_select(value.clone()))
             .h(px(36.0))

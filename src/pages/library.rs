@@ -67,12 +67,12 @@ fn banner(name: String, picture: Option<String>, tint: Option<AdaptiveColor>, wi
 
 /// The Media place: Favorites, Playlists and the server's libraries, as banners.
 pub fn media() -> AnyElement {
-    let libraries = resource(|| Some(()), |(), _| async { api::get_libraries_cached(server()).await.map_err(|error| error.to_string()) });
+    let libraries = resource(|| Some(crate::refresh::pulls()), |_, _| async { api::get_libraries_cached(server()).await.map_err(|error| error.to_string()) });
     let columns = if is_wide() { 3.0 } else if window().width.0 >= 640.0 { 2.0 } else { 1.0 };
     let width = (window().width.0 - 2.0 * inset() - (columns - 1.0) * 16.0) / columns;
     let scroll_ref = element_ref();
     page(
-        scroll().element_ref(&scroll_ref).on_scroll(crate::tv_focus::root_scroll(crate::nav::Place::Media, scroll_ref)).flex_1().child(
+        crate::refresh::refreshable(scroll()).element_ref(&scroll_ref).on_scroll(crate::tv_focus::root_scroll(crate::nav::Place::Media, scroll_ref)).flex_1().child(
             view()
                 .px(px(inset()))
                 .pb(crate::ui::tokens::bottom_room(140.0))

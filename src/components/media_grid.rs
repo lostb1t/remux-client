@@ -70,13 +70,24 @@ pub fn media_grid(header: impl IntoElement, query: MediaQuery, caption: bool) ->
         });
     };
     load();
+    // Pulled down to refresh: from the first page again (not while a page is on its way, which
+    // would land among the new ones).
+    let reload = {
+        let load = load.clone();
+        move || {
+            if pages.with_untracked(|pages| !pages.loading) {
+                pages.set(Pages { more: true, ..Pages::default() });
+                load();
+            }
+        }
+    };
     let open = nav::open_media;
     let count = move || pages.with(|pages| pages.items.len());
     let gap = ui::card_gap();
-    virtual_list(count, move |at| {
+    crate::refresh::refreshable_with(virtual_list(count, move |at| {
         let media = move || pages.with(|pages| pages.items.get(at.index()).cloned());
         ui::grid_card(media, variant, caption, open)
-    })
+    }), reload)
     .columns(columns())
     .column_gap(px(gap))
     .row_gap(px(if caption { 16.0 } else { gap }))
