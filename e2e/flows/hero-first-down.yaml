@@ -1,0 +1,24 @@
+# Home on a TV, the first key: down from the hero's Play button is the first row, and stays there.
+# (The hero asked for the focus again for a few seconds after it opened, and took it back from the
+# first row: down had to be pressed three times.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 30000
+# At once, while the hero is still opening.
+- pressKey: Remote Dpad Down
+- runFlow:
+    file: ../lib/wait.yaml
+    env:
+      MS: 4000
+- assertNotVisible:
+    text: Play|Resume
+    focused: true
+- assertNotVisible:
+    text: Menu
+    focused: true

@@ -1,0 +1,41 @@
+{
+  "cssVars": {
+    "theme": {
+      "radius": "0.5rem",
+      "background": "#171717",
+      "foreground": "#ffffff",
+      "card": "#262626",
+      "card-foreground": "#ffffff",
+      "popover": "#18181c",
+      "popover-foreground": "#ffffff",
+      "primary": "#ffffff",
+      "primary-foreground": "#0a0a0a",
+      "secondary": "#262626",
+      "secondary-foreground": "#ffffff",
+      "muted": "#262626",
+      "muted-foreground": "rgba(255, 255, 255, 0.55)",
+      "accent": "rgba(255, 255, 255, 0.10)",
+      "accent-foreground": "#ffffff",
+      "destructive": "#f87171",
+      "border": "rgba(255, 255, 255, 0.10)",
+      "input": "rgba(255, 255, 255, 0.15)",
+      "ring": "rgba(255, 255, 255, 0.95)",
+      "glass": "rgba(14, 14, 18, 0.55)",
+      "glass-solid": "rgba(24, 24, 28, 0.94)",
+      "glass-highlight": "rgba(255, 255, 255, 0.06)",
+      "scrim": "rgba(0, 0, 0, 0.60)",
+      "shade": "rgba(0, 0, 0, 0.45)",
+      "secondary-text": "rgba(255, 255, 255, 0.70)",
+      "rating-star": "#fbbf24",
+      "skeleton": "#242428",
+      "avatar": "#312e81",
+      "track": "rgba(255, 255, 255, 0.25)",
+      "sheet": "#1c1c1e",
+      "group": "#2c2c2e",
+      "positive": "#5a9a68",
+      "favorites-tint": "rgba(225, 29, 72, 0.5)",
+      "playlists-tint": "rgba(124, 58, 237, 0.5)",
+      "live": "#a855f7"
+    }
+  }
+}

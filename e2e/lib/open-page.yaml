@@ -1,0 +1,41 @@
+# Opens a page of the app through its menu, with the remote, from Home. Used by the flows:
+#
+#   - runFlow:
+#       file: ../lib/open-page.yaml
+#       env:
+#         PAGE: Media
+#
+# PAGE is the name in the menu: Media, Discover, Live TV, Settings.
+appId: com.github.remux
+---
+# Up until the menu button has the focus (the hero of Home takes it first), OK opens the menu.
+- extendedWaitUntil:
+    visible: Menu
+    timeout: 30000
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: Menu
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Up
+- pressKey: Remote Dpad Center
+# The menu has to be open before the remote goes down it (on a slow emulator the keys came before it).
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 10000
+# Down until the page has the focus, OK.
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: ${PAGE}
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Down
+- pressKey: Remote Dpad Center

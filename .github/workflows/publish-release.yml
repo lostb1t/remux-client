@@ -1,0 +1,81 @@
+name: Publish Release
+
+# Puts the build of one platform on a pre-release of this repository (with the workflow's own
+# token: the code and the releases are in one repository now). The release is one for all the
+# platforms: each only replaces its own files, `remux-<platform>-…`, and leaves the others as they
+# are. Called by the nightly workflow.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The tag, and the name, of the release. It is made, as a pre-release, if it is not there.
+        type: string
+        required: true
+      artifact:
+        description: The artifact with the build of the platform.
+        type: string
+        required: true
+      platform:
+        description: What the platform is called in the names of the files (android, ios, ...).
+        type: string
+        required: true
+
+# One build of a platform at a time. Platforms publish side by side; the one that comes second
+# finds the release made by the first.
+concurrency:
+  group: publish-release-${{ inputs.tag }}-${{ inputs.platform }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the build
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: build
+
+      - name: Put it on the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          set -euo pipefail
+          commit="${GITHUB_SHA::7}"
+
+          # The names say which platform and which commit; the files are what the build made.
+          mkdir upload
+          for file in build/*; do
+            case "${file##*/}" in
+              *.*) ext=".${file##*.}" ;;
+              *) ext="" ;;
+            esac
+            cp "$file" "upload/remux-${PLATFORM}-${commit}${ext}"
+          done
+
+          if ! gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            # Another platform may make it at the same moment: then it is there when this fails.
+            gh release create "$TAG" -R "$REPO" --prerelease --latest=false --target "$GITHUB_SHA" --title "$TAG" \
+              --notes "Builds of every platform, one set of files each, of the newest nightly. The commit is in the name of each file." \
+              || gh release view "$TAG" -R "$REPO" >/dev/null
+          fi
+
+          gh release upload "$TAG" upload/* -R "$REPO" --clobber
+
+          # This platform keeps only its newest build; the other platforms' files are left alone.
+          new=$(ls upload | sort)
+          gh release view "$TAG" -R "$REPO" --json assets --jq '.assets[].name' \
+            | grep -E "^remux-${PLATFORM}-" \
+            | while read -r old; do
+                echo "$new" | grep -qxF "$old" || gh release delete-asset "$TAG" "$old" -R "$REPO" -y
+              done || true
+
+          {
+            echo "Published to $REPO@$TAG:"
+            ls upload | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,76 @@
+name: Build Android
+
+# Builds the Android app, once: one APK for phones and TVs (arm64-v8a, armeabi-v7a, and x86_64 for
+# the emulator of the end-to-end tests). Other workflows use it by calling this one, and take the
+# `android-apk` artifact. Signed with the key of the repository's secrets when they are there, else
+# with NSH's debug key.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # The number of commits is the build number.
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools build-tools;36.0.0 platforms;android-36 ndk;27.3.13750724
+
+      - name: Set up NSH
+        uses: ./.github/actions/setup-nsh
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+          cache-key: android
+
+      # The app's Java (ExoPlayer, the music service, ...) against the libraries it uses, which
+      # are fetched from Maven (not in git): android/out/classes.dex, which nsh.json ships.
+      - name: Build the app's Java
+        run: |
+          python3 android/fetch-libs.py
+          android/build.sh
+
+      - name: Write the keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64: the APK is signed with the debug key."
+          fi
+
+      - name: Build the APK
+        env:
+          NSH_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          export NDK_HOME="$ANDROID_HOME/ndk/27.3.13750724" ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.3.13750724"
+          sign=()
+          [ -n "${KEYSTORE:-}" ] && sign=(--keystore "$KEYSTORE" --key-alias "$ANDROID_KEY_ALIAS")
+          nsh package --target android --abi arm64-v8a,armeabi-v7a,x86_64 \
+            --build "$(git rev-list --count HEAD)" "${sign[@]}" -o out
+          mkdir -p dist
+          cp out/Remux.apk "dist/remux.apk"
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/remux.apk
+          if-no-files-found: error
+          retention-days: 1

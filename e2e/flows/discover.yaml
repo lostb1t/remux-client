@@ -1,0 +1,68 @@
+# Discover on a TV: the search field and the filters are above the posters, and the remote reaches
+# each of them, and back. (Which filter it lands on can vary with how fast the keys come, so any of
+# them will do.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Discover
+- extendedWaitUntil:
+    visible: All types
+    timeout: 15000
+
+# Down from the menu button leaves it, to the search field, and again to the filters.
+- pressKey: Remote Dpad Down
+- extendedWaitUntil:
+    notVisible:
+      text: Menu
+      focused: true
+    timeout: 5000
+- pressKey: Remote Dpad Down
+- extendedWaitUntil:
+    visible:
+      text: All types|Genre|Popular|Descending
+      focused: true
+    timeout: 5000
+
+# Down from the filters is the first poster (the posters may still be arriving: down again until
+# the focus has left the filters), and the remote goes along the row and down a row.
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: All types|Genre|Popular|Descending
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Down
+            - waitForAnimationToEnd:
+                timeout: 1500
+- assertNotVisible:
+    text: All types|Genre|Popular|Descending
+    focused: true
+- pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Down
+- assertNotVisible:
+    text: All types|Genre|Popular|Descending
+    focused: true
+
+# Up from the posters is the filters again (up from the first row is what is above it).
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: All types|Genre|Popular|Descending
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Up
+            - waitForAnimationToEnd:
+                timeout: 1500
+- assertVisible:
+    text: All types|Genre|Popular|Descending
+    focused: true

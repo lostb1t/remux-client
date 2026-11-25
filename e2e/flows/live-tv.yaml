@@ -1,0 +1,26 @@
+# Live TV on a TV: the landing page has the tabs, and the remote reaches the channels and the
+# guide.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Live TV
+- extendedWaitUntil:
+    visible: Channels
+    timeout: 15000
+- assertVisible: Guide
+
+# Down from the menu button goes to the page (one of its tabs or the first channel), and the menu
+# button is where up ends.
+- pressKey: Remote Dpad Down
+- assertNotVisible:
+    text: Menu
+    focused: true
+- pressKey: Remote Dpad Up
+- pressKey: Remote Dpad Up
+- assertVisible:
+    text: Menu
+    focused: true

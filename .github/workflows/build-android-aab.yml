@@ -1,0 +1,85 @@
+name: Build Android bundle
+
+# The Android app as an app bundle (.aab), the form Google Play takes, signed with the upload key of
+# the repository's secrets. Started by hand; the bundle ends up on the pre-release
+# `android-bundle` of this repository, which keeps only the newest. Nothing is uploaded to Play
+# yet (`nsh publish android` would).
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      # To make the release and put the bundle on it.
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools build-tools;36.0.0 platforms;android-36 ndk;27.3.13750724
+
+      - name: Set up NSH
+        uses: ./.github/actions/setup-nsh
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+          cache-key: android-aab
+
+      - name: Build the app's Java
+        run: |
+          python3 android/fetch-libs.py
+          android/build.sh
+
+      # A bundle for Play must be signed with the upload key: without it there is nothing to do.
+      - name: Write the keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set: a bundle for Play needs the upload key."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build the bundle
+        env:
+          NSH_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          export NDK_HOME="$ANDROID_HOME/ndk/27.3.13750724" ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.3.13750724"
+          nsh package --target android --format aab --keystore "$RUNNER_TEMP/release.jks" \
+            --key-alias "$ANDROID_KEY_ALIAS" --build "$(git rev-list --count HEAD)" -o out
+          mkdir -p dist
+          cp out/*.aab "dist/remux-${GITHUB_SHA::7}.aab"
+
+      # Not an artifact: a bundle has no reason to be downloaded by anyone but the one uploading it.
+      - name: Put it on the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: android-bundle
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --prerelease --latest=false --title "Android bundle" \
+              --notes "The newest app bundle for Google Play, signed with the upload key. Replaced by every build." \
+              || gh release view "$TAG" >/dev/null
+          fi
+          gh release upload "$TAG" dist/*.aab --clobber
+          new=$(ls dist | sort)
+          gh release view "$TAG" --json assets --jq '.assets[].name' | while read -r old; do
+            echo "$new" | grep -qxF "$old" || gh release delete-asset "$TAG" "$old" -y
+          done
+          echo "Published to the release $TAG: $new" >> "$GITHUB_STEP_SUMMARY"

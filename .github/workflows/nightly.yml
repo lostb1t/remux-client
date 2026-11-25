@@ -1,0 +1,163 @@
+name: Nightly
+
+# A build of the current state of the main branch, started by hand: from the Actions tab, or with
+#   gh workflow run nightly.yml            (add -f android=false to leave something out)
+# It does not run on commits. The builds themselves are in the workflows it calls. Everything runs
+# on GitHub's runners, and the releases are this repository's.
+on:
+  workflow_dispatch:
+    inputs:
+      docker:
+        description: Build and push the web image
+        type: boolean
+        default: true
+      android:
+        description: Build the Android app, and put it on the release
+        type: boolean
+        default: true
+      web:
+        description: Put the web app, as a zip, on the release
+        type: boolean
+        default: true
+      # Off by default: their players are not there yet (PLAN.md), so the app plays nothing on them.
+      ios:
+        description: Build the iOS app (no player yet), and put it on the release
+        type: boolean
+        default: false
+      desktop:
+        description: Build the macOS, Windows and Linux apps (no player yet), and put them on the release
+        type: boolean
+        default: false
+      release_tag:
+        description: The tag, and the name, of the release; by default one of its own for each build
+        type: string
+        default: ''
+      keep:
+        description: How many nightly releases are kept; the older ones are deleted
+        type: string
+        default: '5'
+
+permissions:
+  actions: read
+  contents: write
+  packages: write
+
+jobs:
+  # A release of its own for every build, so that what follows the releases (Obtainium, say) sees
+  # each one as a new version. All the platforms of this run put their files on it.
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        env:
+          GIVEN: ${{ inputs.release_tag }}
+        run: |
+          if [ -n "$GIVEN" ]; then
+            echo "tag=$GIVEN" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=nightly-$(date -u +%Y%m%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # The image serves the app at the root of its domain. Pushed after the tests, like the releases.
+  web:
+    needs: e2e
+    if: ${{ !cancelled() && inputs.docker && needs.e2e.result != 'failure' }}
+    uses: ./.github/workflows/docker-web.yml
+    with:
+      tag: nightly
+      image: true
+
+  # The zip is for a server that hosts the app at /remux.
+  web-zip:
+    if: ${{ inputs.web }}
+    uses: ./.github/workflows/build-web.yml
+    with:
+      base_path: remux
+      suffix: -remux
+
+  android:
+    if: ${{ inputs.android }}
+    uses: ./.github/workflows/build-android.yml
+    # For the key the APK is signed with.
+    secrets: inherit
+
+  # The flows of e2e/ on an Android TV emulator, with the APK that was just built. When they fail
+  # nothing is released. (Without Android there is nothing to test with, and the others go ahead.)
+  e2e:
+    needs: android
+    if: ${{ inputs.android }}
+    uses: ./.github/workflows/e2e-android.yml
+    # For the test server and user.
+    secrets: inherit
+
+  ios:
+    if: ${{ inputs.ios }}
+    uses: ./.github/workflows/build-ios.yml
+
+  desktop:
+    if: ${{ inputs.desktop }}
+    uses: ./.github/workflows/build-desktop.yml
+
+  publish-android:
+    needs: [meta, android, e2e]
+    if: ${{ !cancelled() && needs.meta.result == 'success' && needs.android.result == 'success' && needs.e2e.result == 'success' }}
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      tag: ${{ needs.meta.outputs.tag }}
+      artifact: android-apk
+      platform: android
+
+  publish-ios:
+    needs: [meta, ios, e2e]
+    if: ${{ !cancelled() && needs.meta.result == 'success' && needs.ios.result == 'success' && needs.e2e.result != 'failure' }}
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      tag: ${{ needs.meta.outputs.tag }}
+      artifact: ios-ipa
+      platform: ios
+
+  publish-web:
+    needs: [meta, web-zip, e2e]
+    if: ${{ !cancelled() && needs.meta.result == 'success' && needs.web-zip.result == 'success' && needs.e2e.result != 'failure' }}
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      tag: ${{ needs.meta.outputs.tag }}
+      artifact: web-zip-remux
+      platform: web
+
+  # Each platform goes on the release by itself: one that failed to build has no artifact, and its
+  # leg fails, which keeps the others from being thrown away with it.
+  publish-desktop:
+    needs: [meta, desktop, e2e]
+    if: ${{ !cancelled() && needs.meta.result == 'success' && needs.desktop.result != 'skipped' && needs.e2e.result != 'failure' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos, windows, linux]
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      tag: ${{ needs.meta.outputs.tag }}
+      artifact: desktop-${{ matrix.os }}
+      platform: ${{ matrix.os }}
+
+  # Only the newest builds are kept.
+  prune:
+    needs: [meta, e2e, publish-android, publish-ios, publish-desktop, publish-web]
+    if: ${{ !cancelled() && needs.e2e.result != 'failure' && inputs.keep != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the older nightly releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          KEEP: ${{ inputs.keep }}
+        run: |
+          set -euo pipefail
+          gh release list -R "$REPO" --limit 200 --json tagName,publishedAt \
+            --jq '[.[] | select(.tagName | startswith("nightly-"))] | sort_by(.publishedAt) | reverse | .[($ENV.KEEP | tonumber):] | .[].tagName' \
+            | while read -r tag; do
+                echo "deleting $tag"
+                gh release delete "$tag" -R "$REPO" --cleanup-tag -y || echo "could not clean up $tag completely"
+              done

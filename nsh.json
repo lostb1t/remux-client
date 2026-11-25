@@ -1,0 +1,58 @@
+{
+  "name": "Remux",
+  "id": "com.github.remux",
+  "version": "0.1.0",
+  "build": 1,
+  "rust": ".",
+  "root": "App",
+  "appearance": "dark",
+  "theme": "theme.json",
+  "android": {
+    "usesCleartextTraffic": true,
+    "libraries": [
+      "android/out/classes.dex",
+      "android/libs/annotation-experimental-1.3.1.aar",
+      "android/libs/exifinterface-1.3.6.aar",
+      "android/libs/media3-common-1.11.1.aar",
+      "android/libs/media3-container-1.11.1.aar",
+      "android/libs/media3-database-1.11.1.aar",
+      "android/libs/media3-datasource-1.11.1.aar",
+      "android/libs/media3-decoder-1.11.1.aar",
+      "android/libs/media3-exoplayer-1.11.1.aar",
+      "android/libs/media3-exoplayer-hls-1.11.1.aar",
+      "android/libs/media3-extractor-1.11.1.aar",
+      "android/libs/annotation-1.6.0.jar",
+      "android/libs/annotations-13.0.jar",
+      "android/libs/concurrent-futures-1.2.0.jar",
+      "android/libs/failureaccess-1.0.2.jar",
+      "android/libs/guava-33.3.1-android.jar",
+      "android/libs/kotlin-stdlib-1.8.0.jar",
+      "android/libs/kotlin-stdlib-common-1.8.0.jar",
+      "android/libs/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar"
+    ],
+    "application": [
+      "<activity android:name=\"com.github.remux.nsh.TvLauncher\" android:exported=\"true\" android:banner=\"@drawable/banner\" android:theme=\"@android:style/Theme.NoDisplay\"><intent-filter><action android:name=\"android.intent.action.MAIN\"/><category android:name=\"android.intent.category.LEANBACK_LAUNCHER\"/></intent-filter></activity>",
+      "<service android:name=\"com.github.remux.nsh.MusicService\" android:exported=\"false\" android:foregroundServiceType=\"mediaPlayback\"/>"
+    ],
+    "targetSdk": 36,
+    "permissions": [
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+      "android.permission.WAKE_LOCK",
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+      "android.permission.ACCESS_WIFI_STATE"
+    ]
+  },
+  "icon": {
+    "android": {
+      "foreground": "icons/icon-foreground.png",
+      "background": "#254029"
+    },
+    "ios": "icons/icon.png",
+    "macos": "icons/icon.png",
+    "windows": "icons/icon.png",
+    "linux": "icons/icon.png",
+    "web": "icons/icon.png"
+  }
+}

@@ -1,0 +1,42 @@
+# Home on a TV: the hero has the focus, down goes to the rows, up goes back, and up again to the
+# menu button.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 30000
+- assertVisible: More info
+
+# Down is a row of posters, not a button of the hero (the rows may still be loading: down again
+# until the focus has left Play).
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: Play|Resume
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Down
+            - waitForAnimationToEnd:
+                timeout: 1500
+- assertNotVisible:
+    text: Play|Resume
+    focused: true
+# Right goes along the row, and up is the hero again.
+- pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Up
+- assertVisible:
+    text: Play|Resume
+    focused: true
+
+# Up from the hero is the menu button.
+- pressKey: Remote Dpad Up
+- assertVisible:
+    text: Menu
+    focused: true

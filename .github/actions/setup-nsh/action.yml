@@ -1,0 +1,50 @@
+name: Set up NSH
+description: >
+  The Rust toolchain (with the targets asked for), a cache of cargo's build, and the NSH CLI, at
+  the version the app is built with (pinned: a release builds with the same NSH every time).
+
+inputs:
+  targets:
+    description: Rust targets to add, separated by commas.
+    default: ""
+  cache-key:
+    description: The key of cargo's build cache (one per platform).
+    required: true
+  nsh-version:
+    description: The NSH release (nsh.json's crates are nsh-* 0.7.0).
+    default: v0.7.0
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.targets }}
+
+    - name: Cache cargo build
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ inputs.cache-key }}
+
+    - name: Install NSH (macOS, Linux)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        NSH_VERSION: ${{ inputs.nsh-version }}
+      run: |
+        curl -fsSL https://nsh.dev/install.sh | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Install NSH (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        NSH_VERSION: ${{ inputs.nsh-version }}
+      run: |
+        irm https://nsh.dev/install.ps1 | iex
+        "$env:LOCALAPPDATA\nsh\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: NSH's version
+      shell: bash
+      run: nsh --version

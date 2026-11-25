@@ -15,7 +15,8 @@
 Remux is a client for [Remux](https://github.com/lostb1t/remux) and Jellyfin servers that feels like
 a streaming service: a big hero on the home screen, rows of posters, a detail page for every title,
 and a player that handles whatever the server throws at it. One codebase (Rust and
-[Dioxus](https://dioxuslabs.com)) for the web, iOS, Android phones, Android TV and the desktop.
+[Native Shell](https://nsh.dev), drawn with each platform's own views) for Android phones,
+Android TV and the web; iOS and the desktop are on the way.
 
 It is a test build of an app that is being made: expect rough edges.
 
@@ -47,15 +48,15 @@ It is a test build of an app that is being made: expect rough edges.
   the server has.
 
 - **A player that plays everything**
-  mpv on iOS and the desktop, ExoPlayer on Android, the browser's own on the web. Pick the version,
-  the audio and the subtitles; *Skip intro* and *Next episode* when the server knows where they are;
-  HDR and Dolby Vision on a screen that shows them.
+  ExoPlayer on Android, the browser's own (with Shaka for HLS) on the web. Pick the version, the
+  audio and the subtitles; *Skip intro* and *Next episode* when the server knows where they are;
+  HDR and Dolby Vision on a screen that shows them. Cast to a Chromecast from an Android phone.
 
 - **Live TV**
   A landing page with what is on now, the channels, and a guide.
 
 - **Music**
-  Albums, artists and playlists, with a player of its own.
+  Albums, artists and playlists, with a player of its own that plays on with the screen off.
 
 - **Automatic quality** *(Remux server)*
   Measures the connection to the server (at the start, when the app comes back to the front, and
@@ -65,8 +66,7 @@ It is a test build of an app that is being made: expect rough edges.
   Sign in to several accounts and servers and switch between them without a password.
 
 - **Android TV**
-  Runs on a TV with the remote: every control can be reached with the D-pad, and a title opens
-  with a zoom from its poster.
+  Runs on a TV with the remote: every control can be reached with the D-pad.
 
 - **Works with Remux and Jellyfin**
   Built for [Remux](https://github.com/lostb1t/remux), and tested against Jellyfin.
@@ -75,14 +75,13 @@ It is a test build of an app that is being made: expect rough edges.
 
 Every build is a pre-release under [Releases](../../releases); the newest is on top. The files say
 the platform and the commit they were made from: `remux-android-<commit>.apk`,
-`remux-macos-<commit>.dmg`, `remux-windows-<commit>.exe`, `remux-linux-<commit>.AppImage` (and
-`.deb`).
+`remux-web-<commit>.zip`.
 
 | Platform | Where to get it |
 | --- | --- |
 | Android (phone and TV) | [Releases](../../releases), kept up to date with Obtainium (below) |
-| macOS, Windows, Linux | [Releases](../../releases) |
 | Web | Hosted at <https://app.remux.media>, as a Docker image, or as a zip (below) |
+| iOS, macOS, Windows, Linux | Not yet: their players are still to come |
 
 The hosted version only works for servers that are behind a reverse proxy and have HTTPS set up
 correctly. If your server runs over HTTP, host the app yourself.
@@ -135,8 +134,27 @@ To update, pull the tag again and restart the container
 
 ## Web, without Docker
 
-Every build also has `remux-web-<commit>.zip` on [Releases](../../releases): the same files, to unpack
-in the folder of a web server. The server has to answer any address that is no file with
-`index.html`, as the app has its own router, and the app has to be served from the root of its
-address (not from a folder such as `/app/`).
+Every build also has `remux-web-<commit>.zip` on [Releases](../../releases): the same files, built
+to be served at `/remux/` (for example `https://example.com/remux/`). Unpack it in that folder of a
+web server. The server has to answer any address under it that is no file with `index.html`, and
+serve `.wasm` as `application/wasm`; it should send the `.br` and `.gz` copies next to each file to
+browsers that take them (nginx: `brotli_static on; gzip_static on;`).
 
+## Development
+
+The app is Rust on [Native Shell](https://nsh.dev) (NSH 0.7.0): `src/lib.rs` is the app,
+`nsh.json` names its root component, and the Android parts NSH has no element for (ExoPlayer, the
+music service, the system's spinner) are Java in `android/src`, used as native components.
+
+```sh
+python3 android/fetch-libs.py && android/build.sh   # the app's Java, once (needs a JDK and the Android SDK)
+nsh run --target android                             # or web; the TV is an Android target too
+nsh package --target android                         # an APK; --target web for the web app
+```
+
+For development the app can sign itself in: copy `src/config.example.rs` to `src/config.rs` (it is
+not in git) and fill in a server and a token. Without it the app starts at its login page.
+
+`PLAN.md` has what is done and what is left, `DESIGN.md` the design decisions. The end-to-end tests
+(Maestro, on an Android TV emulator) are in `e2e/`; the workflows in `.github/workflows` build every
+platform and publish the nightly builds here.

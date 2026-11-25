@@ -1,0 +1,45 @@
+# Moves the remote to the tile named TILE of the Media page (from the menu over it), whatever
+# column it is in: down a row, then along it right and back left, row after row. (The order of the
+# tiles is the server's, so a fixed number of presses only fits one server.) Used by the flows:
+#
+#   - runFlow:
+#       file: ../lib/focus-tile.yaml
+#       env:
+#         TILE: Popular Movies
+appId: com.github.remux
+---
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: ${TILE}
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Down
+            - waitForAnimationToEnd:
+                timeout: 1000
+      - repeat:
+          times: 2
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    text: ${TILE}
+                    focused: true
+                commands:
+                  - pressKey: Remote Dpad Right
+      - repeat:
+          times: 2
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    text: ${TILE}
+                    focused: true
+                commands:
+                  - pressKey: Remote Dpad Left
+- assertVisible:
+    text: ${TILE}
+    focused: true

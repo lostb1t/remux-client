@@ -1,0 +1,39 @@
+# A page that opens over another on a TV (a library): the first of what it lists has the focus,
+# and back on the page below, the tile it was opened from has it again. (Nothing had the focus on
+# either: the next key went anywhere, mostly to the menu button.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Media
+- extendedWaitUntil:
+    visible: Popular Movies
+    timeout: 15000
+- runFlow:
+    file: ../lib/focus-tile.yaml
+    env:
+      TILE: Popular Movies
+- pressKey: Remote Dpad Center
+- runFlow:
+    file: ../lib/wait.yaml
+    env:
+      MS: 4000
+
+# Down from the first poster is the row below: not the menu button, where it went from nothing.
+- pressKey: Remote Dpad Down
+- waitForAnimationToEnd:
+    timeout: 1500
+- assertNotVisible:
+    text: Menu
+    focused: true
+
+# Back: the library it was opened from has the focus again.
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      text: Popular Movies
+      focused: true
+    timeout: 5000

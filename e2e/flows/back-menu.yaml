@@ -1,0 +1,32 @@
+# Back on a main page of a TV opens the menu instead of leaving the app. (Back once more, with a
+# menu that was opened that way, leaves the app.)
+#
+# Not checked here: that the menu has the focus on the page it was opened from. It does (seen
+# through DevTools), but with the accessibility service of Maestro on, the WebView does not give
+# a script's focus() to the element, so it cannot be asserted from here.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 30000
+
+# Home: Back opens the menu (Settings is only on it) and the app is still there.
+- pressKey: Back
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 5000
+
+# Media from the menu, and Back on that page opens the menu too.
+- tapOn: Media
+- extendedWaitUntil:
+    visible: Favorites
+    timeout: 15000
+- assertNotVisible: Settings
+- pressKey: Back
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 5000

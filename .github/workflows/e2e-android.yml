@@ -1,0 +1,120 @@
+name: End-to-end (Android TV)
+
+# Runs the flows in e2e/ (Maestro) on an Android TV emulator, with the APK of this run: the
+# `android-apk` artifact, which the nightly workflow makes first. The app signs in at its login
+# page (e2e/lib/login.yaml) on the server and with the user of the repository's secrets
+# E2E_SERVER, E2E_USERNAME and E2E_PASSWORD (a user of its own for this, not an admin).
+#
+# GitHub's Linux runners have KVM: it only has to be opened to the runner's user.
+on:
+  workflow_call:
+  # Alone, on the APK of an earlier run (artifacts last a day), to try the flows without a build:
+  #   gh workflow run e2e-android.yml -f run_id=<run>
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The run whose `android-apk` artifact is used.
+        type: string
+        required: true
+
+# Reading the artifact of another run (the manual start) needs `actions: read`.
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MAESTRO_VERSION: 2.12.1
+      AVD_IMAGE: system-images;android-36;android-tv;x86_64
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Open KVM to the runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm
+
+      # Called by the nightly: the artifact of this very run.
+      - name: Download the APK
+        if: ${{ inputs.run_id == '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: build
+
+      # Started by hand: the artifact of the run that was named.
+      - name: Download the APK of the run that was named
+        if: ${{ inputs.run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: build
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools emulator ${{ env.AVD_IMAGE }}
+
+      - name: Install Maestro
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.maestro-cli"
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" \
+            "https://github.com/mobile-dev-inc/Maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          unzip -oq "$RUNNER_TEMP/maestro.zip" -d "$HOME/.maestro-cli"
+          echo "MAESTRO_HOME=$HOME/.maestro-cli/maestro" >> "$GITHUB_ENV"
+
+      - name: Start the emulator
+        env:
+          EMULATOR_LOG: ${{ runner.temp }}/emulator.log
+        run: |
+          e2e/emulator.sh start
+          # The keyboard that comes up for a text field would cover the page.
+          adb shell settings put secure show_ime_with_hard_keyboard 0 || true
+
+      - name: Install the app
+        run: adb install -r -g build/remux.apk
+
+      - name: Run the flows
+        env:
+          # The emulator is started again, should it go away.
+          E2E_RESTART_EMULATOR: "1"
+          EMULATOR_LOG: ${{ runner.temp }}/emulator.log
+          REMUX_TEST_SERVER: ${{ secrets.E2E_SERVER }}
+          REMUX_TEST_USERNAME: ${{ secrets.E2E_USERNAME }}
+          REMUX_TEST_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        # The emulator now and then does not answer adb for a few seconds: run.sh runs a flow again
+        # for that, and when the whole run fails it is done once more. A flow that really fails
+        # fails twice.
+        run: |
+          e2e/run.sh || { echo "-- the flows are run once more"; e2e/run.sh; }
+
+      # The screenshots and what the screen looked like at each step, for a flow that failed.
+      - name: Keep the output of Maestro
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-maestro
+          path: |
+            ~/.maestro/tests
+            ${{ runner.temp }}/emulator.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Clean up
+        if: ${{ always() }}
+        run: e2e/emulator.sh stop

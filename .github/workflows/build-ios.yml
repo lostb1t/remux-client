@@ -1,0 +1,39 @@
+name: Build iOS
+
+# An unsigned iOS IPA, for sideloading (Sideloadly signs it while installing). Other workflows use
+# this one and take the `ios-ipa` artifact. The video and music players are Android's and the
+# web's for now (PLAN.md): on iOS the app shows everything but plays nothing yet.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up NSH
+        uses: ./.github/actions/setup-nsh
+        with:
+          targets: aarch64-apple-ios
+          cache-key: ios
+
+      # Without --sign: an IPA the installer signs.
+      - name: Build the IPA
+        run: |
+          set -euo pipefail
+          nsh package --target ios --build "$(git rev-list --count HEAD)" -o out
+          mkdir -p dist
+          cp out/*.ipa dist/remux.ipa
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: dist/remux.ipa
+          if-no-files-found: error
+          retention-days: 1

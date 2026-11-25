@@ -1,0 +1,57 @@
+# The menu on a TV: its places are one column, and left and right stay on them. (They went to the
+# page behind the menu, which the WebView's own search found nearest.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Media
+- extendedWaitUntil:
+    visible: Favorites
+    timeout: 15000
+# Up to the menu button, OK: the menu opens on the page it is on.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: Menu
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Up
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible:
+      text: Media
+      focused: true
+    timeout: 5000
+# Once the menu has settled (it asks for the focus on its item a few times as it opens).
+- runFlow:
+    file: ../lib/wait.yaml
+    env:
+      MS: 1500
+# Right stays in the menu: down after it is the next place of the menu. (Gone to the first tile
+# of the page behind the menu, down would be a tile below that. Whether that tile is "focused" can't
+# be told: the menu covers its name.)
+- pressKey: Remote Dpad Right
+- waitForAnimationToEnd:
+    timeout: 1000
+- pressKey: Remote Dpad Down
+- extendedWaitUntil:
+    visible:
+      text: Discover
+      focused: true
+    timeout: 3000
+# And left, then up, is back on Media.
+- pressKey: Remote Dpad Left
+- waitForAnimationToEnd:
+    timeout: 1000
+- pressKey: Remote Dpad Up
+- extendedWaitUntil:
+    visible:
+      text: Media
+      focused: true
+    timeout: 3000

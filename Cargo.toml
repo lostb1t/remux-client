@@ -1,0 +1,59 @@
+[package]
+name = "nsh-app-remux"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+nsh-core = "0.7.0"
+nsh-base = "0.7.0"
+env_logger = "0.11"
+log = "0.4"
+# The Remux/Jellyfin API: its endpoints and types. Requests go through NSH's own `fetch`.
+remux-sdks = { git = "https://github.com/lostb1t/remux", rev = "2368d2bb3e7a40ef828ad25fe4264d319bf47b43" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_urlencoded = "0.7"
+uuid = { version = "1", features = ["serde"] }
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+url = "2"
+anyhow = "1"
+strum_macros = "0.26.4"
+http = "1"
+nsh-icon = "0.2.2"
+nsh-icon-phosphor = "0.2.2"
+bon = "3"
+futures = "0.3"
+strum = "0.26.3"
+derive_more = { version = "2", features = ["debug"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nsh-platform-linux = { version = "0.7.0", default-features = false, features = ["shader", "editor", "emoji-picker", "highlight", "math", "plot", "rich-editor", "term", "websocket", "updater", "svg", "net", "sound"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+nsh-platform-macos = { version = "0.7.0", default-features = false, features = ["shader", "editor", "emoji-picker", "highlight", "math", "plot", "rich-editor", "term", "websocket", "updater", "svg"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+nsh-platform-windows = { version = "0.7.0", default-features = false, features = ["shader", "editor", "emoji-picker", "highlight", "math", "plot", "rich-editor", "term", "websocket", "updater", "svg", "net"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Native components of the app on Android: ExoPlayer (src/player/exo.rs). Its library is `nsh`.
+nsh-platform-android = { version = "0.7.0", default-features = false }
+
+# Casting, where there is a network to look on (not the web: the browser has its own Cast):
+# finding Chromecasts, and talking to them over TLS with protobuf frames (Remux's).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+mdns-sd = "0.21"
+prost = "0.13"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+
+# The web: the video player is a `<video>` of the app's own, with Shaka for HLS (Remux's
+# `player/web.rs`). wasm-bindgen pinned to the CLI that NSH runs on the runtime (`nsh package`
+# says which).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "=0.2.130"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Document", "Element", "HtmlElement", "HtmlMediaElement", "HtmlVideoElement", "HtmlTrackElement", "HtmlScriptElement", "HtmlHeadElement", "CssStyleDeclaration", "MediaError", "TextTrack", "TextTrackMode", "TimeRanges", "Window", "Navigator", "Blob", "BlobPropertyBag", "Url", "Request", "RequestInit", "Response", "Event", "MediaQueryList"] }

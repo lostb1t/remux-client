@@ -1,0 +1,25 @@
+# Signs in at the login page, as a user does: the server's address, the user and the password, then
+# Log In. Nothing happens when the app is signed in already. Run by run.sh before the flows, with
+# SERVER, USERNAME and PASSWORD (from REMUX_TEST_SERVER, _USERNAME and _PASSWORD).
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Log In|Play|Resume|Menu
+    timeout: 30000
+- runFlow:
+    when:
+      visible: Log In
+    commands:
+      - tapOn: Server URL
+      - inputText: ${SERVER}
+      - tapOn: Username
+      - inputText: ${USERNAME}
+      - tapOn: Password
+      - inputText: ${PASSWORD}
+      - hideKeyboard
+      - tapOn: Log In
+      - extendedWaitUntil:
+          visible: Play|Resume|Menu
+          timeout: 60000

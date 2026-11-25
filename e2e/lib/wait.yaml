@@ -1,0 +1,10 @@
+# Waits MS milliseconds, for a flow that has to see that something does NOT happen within a while
+# (Maestro's own waits return as soon as what they wait for is so). Used by the flows:
+#
+#   - runFlow:
+#       file: ../lib/wait.yaml
+#       env:
+#         MS: 3000
+appId: com.github.remux
+---
+- evalScript: ${(function () { var end = Date.now() + Number(MS); while (Date.now() < end) {} })()}

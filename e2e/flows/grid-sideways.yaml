@@ -1,0 +1,42 @@
+# A library on a TV: right goes along a row of the grid of posters, not down. (A focused poster is
+# drawn larger and overlaps the one below it, which the WebView's own search took: right from the
+# second poster went to the one under it, and back.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Media
+- extendedWaitUntil:
+    visible: Popular Movies
+    timeout: 15000
+# Down from the menu button to the libraries, until Popular Movies has the focus; OK opens it.
+- runFlow:
+    file: ../lib/focus-tile.yaml
+    env:
+      TILE: Popular Movies
+- pressKey: Remote Dpad Center
+- runFlow:
+    file: ../lib/wait.yaml
+    env:
+      MS: 4000
+
+# Right three times: along the first row, to the third poster at most. Up from the first row is the
+# menu button; from a poster of the row below it would be a poster of the first row.
+- pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Right
+- waitForAnimationToEnd:
+    timeout: 1500
+# Up from the first row of a page over a place stays on the page: it has no menu (only the first
+# page of a place has it, at its top).
+- pressKey: Remote Dpad Up
+- runFlow:
+    file: ../lib/wait.yaml
+    env:
+      MS: 1500
+- assertNotVisible:
+    text: Menu
+    focused: true

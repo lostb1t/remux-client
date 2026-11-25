@@ -1,0 +1,9 @@
+.nsh/
+target/
+# What `nsh package` writes (APKs, the web app).
+/out/
+
+# The server and token of the proof of concept.
+/src/config.rs
+/android/out/
+/android/libs/

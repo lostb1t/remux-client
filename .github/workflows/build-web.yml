@@ -1,0 +1,86 @@
+name: Build Web
+
+# Builds the web app (`nsh package --target web`: the crate in WebAssembly, with NSH's page),
+# once. Other workflows use it by calling this one, and take the `web-dist` artifact (the files),
+# or `web-zip` (the same in one zip, for a server that hosts it). For a path other than the root of
+# a domain (`remux`: the app is served at /remux/) the path is written into nsh.json (`web.base`)
+# first; the artifacts then have the suffix.
+on:
+  workflow_call:
+    inputs:
+      base_path:
+        type: string
+        default: ""
+      suffix:
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      base_path:
+        description: The path the app is served at, such as remux (empty is the root).
+        type: string
+        default: ""
+      suffix:
+        description: Added to the names of the artifacts.
+        type: string
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up NSH
+        uses: ./.github/actions/setup-nsh
+        with:
+          targets: wasm32-unknown-unknown
+          cache-key: web
+
+      # The runtime has C in it (zstd), which needs a clang that compiles to WebAssembly, and the
+      # crate calls the browser through wasm-bindgen, whose CLI has to be the version the crate
+      # pins (Cargo.toml: wasm-bindgen = "=0.2.130").
+      - name: Install clang and the wasm-bindgen CLI
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang llvm
+          cargo install wasm-bindgen-cli --version 0.2.130 --locked
+          {
+            echo "CC_wasm32_unknown_unknown=clang"
+            echo "AR_wasm32_unknown_unknown=llvm-ar"
+          } >> "$GITHUB_ENV"
+
+      - name: Set the path of the app
+        if: ${{ inputs.base_path != '' }}
+        env:
+          BASE_PATH: ${{ inputs.base_path }}
+        run: |
+          jq --arg base "/${BASE_PATH#/}/" '.web.base = ($base | gsub("//"; "/"))' nsh.json > nsh.json.new
+          mv nsh.json.new nsh.json
+          jq .web nsh.json
+
+      - name: Build the app
+        run: nsh package --target web -o out/web
+
+      - name: Upload the app
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist${{ inputs.suffix }}
+          path: out/web/Remux
+          if-no-files-found: error
+          retention-days: 1
+
+      # The files at the root of the zip: unpacked where a web server serves from, it is the app.
+      - name: Zip the app
+        run: |
+          cd out/web/Remux
+          zip -qr "$GITHUB_WORKSPACE/remux-web.zip" .
+
+      - name: Upload the zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-zip${{ inputs.suffix }}
+          path: remux-web.zip
+          if-no-files-found: error
+          retention-days: 1

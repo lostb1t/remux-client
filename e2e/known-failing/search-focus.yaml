@@ -1,0 +1,41 @@
+# A search on a TV: once it is done, a title it found has the focus. (The field that had it went
+# with the page it was on, and nothing had the focus: the next key went anywhere, up to the menu.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Discover
+- extendedWaitUntil:
+    visible: All types
+    timeout: 15000
+# Down from the menu button is the search field; OK opens it for typing.
+- pressKey: Remote Dpad Down
+- extendedWaitUntil:
+    notVisible:
+      text: Menu
+      focused: true
+    timeout: 5000
+- pressKey: Remote Dpad Center
+- runFlow:
+    file: ../lib/wait.yaml
+    env:
+      MS: 1000
+- inputText: dune
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: Movies
+    timeout: 15000
+- runFlow:
+    file: ../lib/wait.yaml
+    env:
+      MS: 3000
+# The focus is on the first row of what was found: up from it is the filter above the rows.
+- pressKey: Remote Dpad Up
+- extendedWaitUntil:
+    visible:
+      text: Genre
+      focused: true
+    timeout: 3000

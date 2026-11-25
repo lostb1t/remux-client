@@ -1,0 +1,52 @@
+# The Media page on a TV: the remote goes down the grid of libraries, row by row, and back up.
+# (The WebView's own search jumped along the first row and never reached the rows below.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Media
+- extendedWaitUntil:
+    visible: Favorites
+    timeout: 15000
+
+# Down from the menu button is the first tile, and right is the second.
+- pressKey: Remote Dpad Down
+- assertVisible:
+    text: Favorites
+    focused: true
+- pressKey: Remote Dpad Right
+- assertVisible:
+    text: Playlists
+    focused: true
+
+# Down is the row below, not another tile of the first row.
+- pressKey: Remote Dpad Down
+- assertNotVisible:
+    text: Playlists
+    focused: true
+- assertNotVisible:
+    text: Favorites
+    focused: true
+# And up is back where it came from, and then the menu button.
+- pressKey: Remote Dpad Up
+- assertVisible:
+    text: Playlists
+    focused: true
+- pressKey: Remote Dpad Up
+- assertVisible:
+    text: Menu
+    focused: true
+
+# All the way down stays on the last row, and does not wander along it.
+- pressKey: Remote Dpad Down
+- repeat:
+    times: 12
+    commands:
+      - pressKey: Remote Dpad Down
+- pressKey: Remote Dpad Down
+- assertNotVisible:
+    text: Favorites
+    focused: true

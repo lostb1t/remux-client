@@ -1,0 +1,56 @@
+# The menu of a poster on a TV (a long press): the focus is in it, and the remote goes down its
+# rows and back up. (It opened with nothing focused, and the grid script took up and down.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 30000
+
+# Down to a row of posters (the rows may still be loading: down again until the focus has left Play).
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: Play|Resume
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Down
+            - waitForAnimationToEnd:
+                timeout: 1500
+- assertNotVisible:
+    text: Play|Resume
+    focused: true
+
+# A long press on the poster that has the focus opens its menu.
+- longPressOn:
+    focused: true
+- extendedWaitUntil:
+    visible: "Add to playlist"
+    timeout: 10000
+
+# The first row (Play, or Resume) has the focus, down goes to the next, and up back.
+- assertVisible:
+    text: "Play|Resume"
+    focused: true
+- pressKey: Remote Dpad Down
+- assertVisible:
+    text: "Mark as watched|Mark as unwatched"
+    focused: true
+- pressKey: Remote Dpad Down
+- assertVisible:
+    text: "Add to favorites|Remove from favorites"
+    focused: true
+- pressKey: Remote Dpad Up
+- assertVisible:
+    text: "Mark as watched|Mark as unwatched"
+    focused: true
+
+# Back closes it, and the page is there again.
+- pressKey: Back
+- assertNotVisible: "Add to playlist"
