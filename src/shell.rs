@@ -59,6 +59,9 @@ fn route_page(route: &Route) -> AnyElement {
 pub fn shell() -> impl IntoElement {
     // The device profile and the speed of the line, for the server (`profile.rs`).
     crate::profile::start();
+    // The web: an address for each page, which the browser's back, forward and reload follow.
+    #[cfg(target_arch = "wasm32")]
+    crate::address::start();
     // Chromecasts on the network, to cast to from a phone.
     if !is_tv() {
         crate::cast::start();

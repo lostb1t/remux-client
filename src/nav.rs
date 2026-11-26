@@ -188,6 +188,19 @@ pub fn can_go_back() -> bool {
     nav().with(|nav| !nav.stacks[nav.place.index()].is_empty())
 }
 
+/// Shows `place` with `routes` over it (the web: the pages of an address, `address.rs`).
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub fn show(place: Place, routes: Vec<Route>) {
+    let same = nav().with_untracked(|nav| nav.place == place && nav.stacks[place.index()] == routes);
+    if same {
+        return;
+    }
+    nav().update(|nav| {
+        nav.place = place;
+        nav.stacks[place.index()] = routes;
+    });
+}
+
 /// Leaves `depth` pages over `place`: the user went back natively (the back button, a swipe).
 pub fn truncate(place: Place, depth: usize) {
     if depth_now(place) <= depth {

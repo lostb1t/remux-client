@@ -1,5 +1,7 @@
 //! Remux, as a Native Shell app: a proof of concept of its home screen (see `DESIGN.md`).
 
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+mod address;
 mod app_host;
 mod capabilities;
 mod cast;

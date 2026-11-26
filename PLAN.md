@@ -2,7 +2,7 @@
 
 Remux (`remux-web`, Dioxus in a WebView) rewritten as a Native Shell app in Rust: native scrolling
 and focus, and no WebView on weak phones and TVs. `remux-web` is deprecated; its code was copied
-here, not shared. This file is where the port stands (2026-11-25) and what is left.
+here, not shared. This file is where the port stands (2026-11-26) and what is left.
 
 ## Done
 
@@ -34,8 +34,11 @@ Remux's banner.
 (`android/src/.../ExoView.java`, `src/player/exo.rs`); on the web a `<video>` with Shaka
 (`player/web.rs`, `js/shaka.js`; Safari's own HLS on Apple devices). Remux's stream choice and
 device profile (the browser's on the web), the version sheet on Play, resume, progress reports,
-next episode, skip intro, subtitles, the audio track, the remote's keys, and HDR where the screen
-shows it (`DeviceInfo.java`).
+next episode, skip intro, subtitles (text, and pictures drawn over the video: `PictureCues.java`),
+the audio track, speed and version, Up next, Live TV's channels before and after, the remote
+between the controls, Retry and the Dolby fallback, and what the device decodes as Remux asked it
+(`DeviceInfo.java`: HEVC 10-bit, each codec's largest picture, HDR, Dolby Vision with a decoder for
+it).
 
 **Music.** The queue in its own ExoPlayer (`MusicPlayer.java`, the component `remux.music`):
 shuffle, repeat, play next, add to queue, the bar above the tabs, the page of what plays. With the
@@ -46,24 +49,36 @@ multicast lock, the cast part of Play and the player's cast button, the device's
 
 **Web.** `nsh package --target web` (needs a clang for WebAssembly, e.g. Homebrew's LLVM, and the
 wasm-bindgen CLI of the version in Cargo.toml): Home, the pages and the player in desktop and phone
-browsers; the server has to allow the page's origin (CORS).
+browsers, with the player's keyboard, volume and full screen, and the login page; the server has to
+allow the page's origin (CORS). Each page has an address (`#/discover/title/movie/<id>`,
+`address.rs`): the browser's back and forward go through the pages, and a reload or a shared link
+opens the page.
 
-**Tests and CI.** `e2e/` has Remux's Maestro flows, adapted to this app and its TV rules (signs in
-at the login page in CI). `.github/workflows` builds every platform on GitHub's runners and
-publishes the nightly builds to this repository; the app id stays `com.github.remux` and the key
-Remux's, so a build installs over the old app.
+**Tests and CI.** `e2e/` has Maestro flows for a TV (`e2e/tv`) and a phone (`e2e/phone`), and
+`tests/web.test.tsx` tests the web app in a browser (`nsh test --target web`, a desktop's and a
+phone's size); all sign in at the login page against the test server and play The Matrix.
+`.github/workflows/e2e.yml` runs them side by side on every push and pull request (the TV's in two
+halves), and a job that fails stops the run. The nightly builds and publishes every platform's
+build to this repository; the app id stays `com.github.remux` and the key Remux's, so a build
+installs over the old app.
 
 ## Left
 
 - **iOS**: a video player (Remux's `RemuxMpv` framework as a native component) and music (AVPlayer);
   until then the iOS build plays nothing.
 - **Desktop** (macOS, Windows, Linux): a video player (mpv, as Remux) and music.
-- **Web**: music (Remux's `music/web.rs`, an `<audio>` with the Media Session API), an address for
-  each page (`UrlScheme`, so back, reload and links work), the player's keyboard and full screen,
-  the login page instead of a development token.
+- **Web**: music (Remux's `music/web.rs`, an `<audio>` with the Media Session API).
 - **TV**: the music bar cannot be reached with the remote yet; the hero's crossfade.
+- **Player**:
+  - text subtitles stand on a dark box; Remux drew them white with a black outline;
+  - the seek bar does not show what is buffered;
+  - a remote's media keys (play/pause, rewind, fast forward) do nothing in the player (nor did
+    they in Remux).
 - **Casting**: not tried on a Chromecast yet.
-- **e2e**: `search-focus` is in `e2e/known-failing` (Maestro's text input keeps the focus in the
+- **Remux server**: a subtitle's DisplayTitle leaves out the file's own title, so a forced track
+  ("[SRT] ENG Forced", without the file's forced flag) and the full one are both "English - SRT";
+  asked of the server, the app keeps the server's names.
+- **e2e**: `search-focus` is in `e2e/tv/known-failing` (Maestro's text input keeps the focus in the
   field); a flow per new TV rule as they come.
 - **Sign-in after updating** from the old app: it kept the session in a file of its own, which this
   app does not read; people sign in again.

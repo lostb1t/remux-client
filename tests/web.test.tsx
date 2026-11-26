@@ -53,11 +53,29 @@ for (const size of sizes) {
     await app.waitFor(playButton, { timeout: 15_000 });
   }, 120_000);
 
+  test(`the browser's back and forward go through the pages (${size.name})`, async () => {
+    const app = await signedIn(size);
+    await app.press("id:hero-picture >> nth=0");
+    await app.waitFor("id:page-back", { timeout: 15_000 });
+    // The browser's back: Home again, with the app.
+    await app.back();
+    await app.waitFor("id:page-back", { state: "gone", timeout: 5_000 });
+    await app.waitFor(playButton);
+    // Its forward: the title's page again.
+    await app.forward();
+    await app.waitFor("id:page-back", { timeout: 15_000 });
+    // The page's own Back goes back in the browser too: the browser's back then leaves nothing
+    // open twice.
+    await app.press("id:page-back");
+    await app.waitFor("id:page-back", { state: "gone", timeout: 5_000 });
+    await app.press("id:tab-media");
+    await app.waitFor("label:Favorites", { timeout: 15_000 });
+  }, 120_000);
+
   test(`a title's page from the hero, and back (${size.name})`, async () => {
     const app = await signedIn(size);
     await app.press("id:hero-picture >> nth=0");
     await app.waitFor("id:page-back", { timeout: 15_000 });
-    // The page's Back (the browser's leaves the app: pages have no address yet, PLAN.md).
     await app.press("id:page-back");
     await app.waitFor("id:page-back", { state: "gone", timeout: 5_000 });
     await app.waitFor(playButton);

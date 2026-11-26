@@ -56,4 +56,4 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 wasm-bindgen = "=0.2.130"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Document", "Element", "HtmlElement", "HtmlMediaElement", "HtmlVideoElement", "HtmlTrackElement", "HtmlScriptElement", "HtmlHeadElement", "CssStyleDeclaration", "MediaError", "TextTrack", "TextTrackMode", "TimeRanges", "Window", "Navigator", "Blob", "BlobPropertyBag", "Url", "Request", "RequestInit", "Response", "Event", "MediaQueryList"] }
+web-sys = { version = "0.3", features = ["Document", "Element", "HtmlElement", "HtmlMediaElement", "HtmlVideoElement", "HtmlTrackElement", "HtmlScriptElement", "HtmlHeadElement", "CssStyleDeclaration", "MediaError", "TextTrack", "TextTrackMode", "TimeRanges", "Window", "Navigator", "Blob", "BlobPropertyBag", "Url", "Request", "RequestInit", "Response", "Event", "MediaQueryList", "History"] }
