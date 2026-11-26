@@ -1,0 +1,47 @@
+# Home on a TV: down through the rows and up again to the hero, which is all on screen then: the
+# page back at its top, so the menu shows (it only does at the top of a place's first page).
+# (The hero stopped half off the screen: Home's Play was in another place's scope, and the page
+# was not scrolled to its top.)
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 30000
+- assertVisible: Menu
+
+# Down three rows: the page scrolls, and the menu goes.
+- repeat:
+    times: 3
+    commands:
+      - pressKey: Remote Dpad Down
+      - waitForAnimationToEnd:
+          timeout: 1500
+- assertNotVisible:
+    text: Play|Resume
+    focused: true
+- assertNotVisible: Menu
+
+# Up until the hero's button has the focus again.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: Play|Resume
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Up
+            - waitForAnimationToEnd:
+                timeout: 1500
+- assertVisible:
+    text: Play|Resume
+    focused: true
+# The page at its top: the menu over the hero shows again.
+- extendedWaitUntil:
+    visible: Menu
+    timeout: 3000

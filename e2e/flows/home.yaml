@@ -35,8 +35,11 @@ appId: com.github.remux
     text: Play|Resume
     focused: true
 
-# Up from the hero is the menu button.
+# Up from the hero opens the menu, on Home.
 - pressKey: Remote Dpad Up
-- assertVisible:
-    text: Menu
-    focused: true
+- extendedWaitUntil:
+    visible:
+      text: Home
+      focused: true
+    timeout: 3000
+- assertVisible: Settings

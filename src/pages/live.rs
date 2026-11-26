@@ -155,7 +155,12 @@ fn live_content() -> impl IntoElement {
                     .gap_6()
                     .child(
                         view().px(px(inset())).gap_3().child(page_header("Live TV", false)).child(ui::menu_group(vec![
-                            ui::menu_row(Some(Phosphor::Television), "Channels", true, || nav::push(Route::LiveChannels)),
+                            {
+                                // The remote starts on Channels (`tv_focus::to_first`).
+                                let channels = element_ref();
+                                crate::tv_focus::set_first_view(crate::nav::Place::LiveTv, channels);
+                                ui::menu_row_at(Some(channels), Some(Phosphor::Television), "Channels", true, || nav::push(Route::LiveChannels))
+                            },
                             ui::menu_row(Some(Phosphor::CalendarBlank), "Guide", true, || nav::push(Route::LiveGuide)),
                         ])),
                     )

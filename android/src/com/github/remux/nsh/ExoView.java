@@ -250,6 +250,11 @@ public final class ExoView extends FrameLayout {
         publish();
     }
 
+    /** The speed it plays at (1 is as made). */
+    public void setRate(double rate) {
+        if (player != null) player.setPlaybackSpeed((float) Math.max(0.25, Math.min(4.0, rate)));
+    }
+
     public void seek(double ms) {
         if (player != null) player.seekTo((long) ms);
         publish();

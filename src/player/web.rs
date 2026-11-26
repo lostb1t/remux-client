@@ -210,6 +210,42 @@ impl WebVideo {
         }
     }
 
+    pub fn set_volume(&self, volume: f64) {
+        self.video.set_volume(volume.clamp(0.0, 1.0));
+    }
+
+    pub fn set_muted(&self, muted: bool) {
+        self.video.set_muted(muted);
+    }
+
+    pub fn set_rate(&self, rate: f64) {
+        self.video.set_playback_rate(rate);
+    }
+
+    /// The page in full screen, or back (the whole page: the controls are the app's, over the
+    /// video). Safari has had these with a prefix.
+    pub fn toggle_fullscreen() {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return };
+        let call = |target: &JsValue, name: &str| -> bool {
+            js_sys::Reflect::get(target, &name.into())
+                .ok()
+                .and_then(|function| function.dyn_into::<js_sys::Function>().ok())
+                .is_some_and(|function| function.call0(target).is_ok())
+        };
+        let full = ["fullscreenElement", "webkitFullscreenElement"]
+            .iter()
+            .any(|name| js_sys::Reflect::get(&document, &(*name).into()).is_ok_and(|element| !element.is_null() && !element.is_undefined()));
+        if full {
+            if !call(&document, "exitFullscreen") {
+                call(&document, "webkitExitFullscreen");
+            }
+        } else if let Some(root) = document.document_element() {
+            if !call(&root, "requestFullscreen") {
+                call(&root, "webkitRequestFullscreen");
+            }
+        }
+    }
+
     pub fn seek(&self, ms: f64) {
         self.video.set_current_time(ms / 1000.0);
     }

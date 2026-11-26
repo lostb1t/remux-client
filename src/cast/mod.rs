@@ -232,6 +232,10 @@ impl CastEngine {
         self.send(Command::Subtitle(index));
     }
 
+    pub fn set_rate(&self, rate: f64) {
+        self.send(Command::Rate(rate));
+    }
+
     pub fn snapshot(&self) -> Snapshot {
         let status = self.status.lock().map(|status| status.clone()).unwrap_or_default();
         Snapshot {
@@ -255,6 +259,7 @@ impl CastEngine {
     pub fn set_paused(&self, _paused: bool) {}
     pub fn seek(&self, _ms: f64) {}
     pub fn set_subtitle(&self, _index: Option<i64>) {}
+    pub fn set_rate(&self, _rate: f64) {}
     pub fn snapshot(&self) -> Snapshot {
         Snapshot::default()
     }

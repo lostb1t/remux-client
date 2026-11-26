@@ -99,6 +99,10 @@ impl NativeComponent for Exo {
                 let index = value.and_then(JsonValue::as_i64).unwrap_or(-1);
                 self.call(env, "audio", "(J)V", &[JValue::Long(index)]);
             }
+            "rate" => {
+                let rate = value.and_then(JsonValue::as_f64).unwrap_or(1.0);
+                self.call(env, "setRate", "(D)V", &[JValue::Double(rate)]);
+            }
             _ => {}
         }
     }

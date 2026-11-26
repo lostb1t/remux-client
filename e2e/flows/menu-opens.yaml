@@ -1,0 +1,30 @@
+# The menu on a TV opens as the remote comes to it (no OK needed), on the place shown; Back closes
+# it, and the remote is back on the page's first element.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 30000
+- assertNotVisible: Settings
+
+- pressKey: Remote Dpad Up
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 3000
+- assertVisible:
+    text: Home
+    focused: true
+
+- pressKey: Back
+- extendedWaitUntil:
+    notVisible: Settings
+    timeout: 3000
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 3000

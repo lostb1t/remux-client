@@ -8,7 +8,7 @@
 # PAGE is the name in the menu: Media, Discover, Live TV, Settings.
 appId: com.github.remux
 ---
-# Up until the menu button has the focus (the hero of Home takes it first), OK opens the menu.
+# Up until the menu opens (it opens as the remote comes to it, on the place shown).
 - extendedWaitUntil:
     visible: Menu
     timeout: 30000
@@ -17,13 +17,11 @@ appId: com.github.remux
     commands:
       - runFlow:
           when:
-            notVisible:
-              text: Menu
-              focused: true
+            notVisible: Settings
           commands:
             - pressKey: Remote Dpad Up
-- pressKey: Remote Dpad Center
-# The menu has to be open before the remote goes down it (on a slow emulator the keys came before it).
+            - waitForAnimationToEnd:
+                timeout: 1000
 - extendedWaitUntil:
     visible: Settings
     timeout: 10000

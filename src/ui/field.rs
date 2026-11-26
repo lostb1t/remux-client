@@ -23,7 +23,11 @@ pub fn field(value: Signal<String>, placeholder: impl Into<String>, on_submit: i
 
 /// A field for `kind` of text.
 pub fn field_of(kind: FieldKind, value: Signal<String>, placeholder: impl Into<String>, on_submit: impl Fn(&str) + 'static) -> impl IntoElement {
-    let me = element_ref();
+    field_named(kind, value, placeholder, on_submit, element_ref())
+}
+
+/// A field that `me` names (to give the focus to).
+pub fn field_named(kind: FieldKind, value: Signal<String>, placeholder: impl Into<String>, on_submit: impl Fn(&str) + 'static, me: ElementRef) -> impl IntoElement {
     let mut field = input()
         .element_ref(&me)
         .value(move || value.get())

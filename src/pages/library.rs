@@ -31,6 +31,10 @@ fn inset() -> f32 {
 fn banner(name: String, picture: Option<String>, tint: Option<AdaptiveColor>, width: f32, on_press: impl Fn() + 'static) -> View {
     // Back comes back to the tile that opened the page.
     let me = element_ref();
+    // The first (Favorites) is where the remote starts on Media (`tv_focus::to_first`).
+    if name == "Favorites" {
+        crate::tv_focus::set_first_view(crate::nav::Place::Media, me);
+    }
     let on_press = move || {
         crate::tv_focus::pressed(me);
         on_press();
@@ -218,7 +222,7 @@ fn person_header(id: Uuid, name: String) -> impl IntoElement {
                                 .child(died.map(|died| text(died).text_sm().text_color(theme().muted_foreground))),
                         ),
                 )
-                .child(story.map(|story| text(story).text_base().number_of_lines(6).text_color(theme().foreground)))
+                .child(story.map(ui::read_more))
                 .into_element()
         })
     }))

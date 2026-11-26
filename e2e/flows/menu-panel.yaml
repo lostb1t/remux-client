@@ -12,30 +12,23 @@ appId: com.github.remux
     visible: Favorites
     timeout: 15000
 # Up to the menu button, OK: the menu opens on the page it is on.
+# Up from the page opens the menu, on the place shown.
 - repeat:
     times: 4
     commands:
       - runFlow:
           when:
-            notVisible:
-              text: Menu
-              focused: true
+            notVisible: Settings
           commands:
             - pressKey: Remote Dpad Up
-- pressKey: Remote Dpad Center
+            - waitForAnimationToEnd:
+                timeout: 1000
 - extendedWaitUntil:
     visible:
       text: Media
       focused: true
     timeout: 5000
-# Once the menu has settled (it asks for the focus on its item a few times as it opens).
-- runFlow:
-    file: ../lib/wait.yaml
-    env:
-      MS: 1500
-# Right stays in the menu: down after it is the next place of the menu. (Gone to the first tile
-# of the page behind the menu, down would be a tile below that. Whether that tile is "focused" can't
-# be told: the menu covers its name.)
+# Right stays in the panel, down is the next place; left stays too, and up is Media again.
 - pressKey: Remote Dpad Right
 - waitForAnimationToEnd:
     timeout: 1000
@@ -45,7 +38,6 @@ appId: com.github.remux
       text: Discover
       focused: true
     timeout: 3000
-# And left, then up, is back on Media.
 - pressKey: Remote Dpad Left
 - waitForAnimationToEnd:
     timeout: 1000
@@ -55,3 +47,12 @@ appId: com.github.remux
       text: Media
       focused: true
     timeout: 3000
+# Up from the first place stays on it (it does not fall back onto the menu button).
+- pressKey: Remote Dpad Up
+- pressKey: Remote Dpad Up
+- extendedWaitUntil:
+    visible:
+      text: Home
+      focused: true
+    timeout: 3000
+- assertVisible: Settings

@@ -162,20 +162,40 @@ pub fn artist(id: Uuid, name: String) -> AnyElement {
         .gap_6()
         .pb_6()
         .child(page_header(name.clone(), true))
+        // The portrait, what they play (their genres) and their story (Remux's `ArtistHeader`).
         .child(dynamic(move || {
-            let portrait = details.get().flatten().and_then(|artist| server().portrait_url(&artist));
+            let artist = details.get().flatten();
+            let portrait = artist.as_ref().and_then(|artist| server().portrait_url(artist));
+            let genres = artist.as_ref().map(|artist| artist.genres.clone()).unwrap_or_default();
+            let story = artist.as_ref().and_then(|artist| artist.description.clone()).filter(|story| !story.is_empty());
             let initial = initial.clone();
             view()
-                .size(px(size))
-                .rounded_full()
-                .overflow_hidden()
-                .bg(group())
-                .items_center()
-                .justify_center()
-                .child(match portrait {
-                    Some(url) => image(url).size_full().object_fit(ResizeMode::Cover).into_element(),
-                    None => text(initial).text_4xl().font_weight(FontWeight::SEMIBOLD).text_color(theme().muted_foreground).into_element(),
-                })
+                .gap_4()
+                .child(
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap_4()
+                        .child(
+                            view()
+                                .size(px(size))
+                                .rounded_full()
+                                .overflow_hidden()
+                                .bg(group())
+                                .items_center()
+                                .justify_center()
+                                .child(match portrait {
+                                    Some(url) => image(url).size_full().object_fit(ResizeMode::Cover).into_element(),
+                                    None => text(initial).text_4xl().font_weight(FontWeight::SEMIBOLD).text_color(theme().muted_foreground).into_element(),
+                                }),
+                        )
+                        .child((!genres.is_empty()).then(|| {
+                            view().flex_1().flex_row().flex_wrap().gap_2().children(genres.into_iter().map(|genre| {
+                                text(genre).text_xs().font_weight(FontWeight::MEDIUM).px_3().py_1().rounded_full().bg(group()).text_color(theme().foreground)
+                            }))
+                        })),
+                )
+                .child(story.map(ui::read_more))
                 .into_element()
         }))
         .child(dynamic(move || {

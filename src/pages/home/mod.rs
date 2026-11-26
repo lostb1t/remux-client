@@ -14,6 +14,8 @@ pub fn home() -> AnyElement {
     let focus = crate::tv_focus::Scope::provide();
     let page = element_ref();
     focus.set_page(page);
+    // The remote starts on the hero's Play (`tv_focus::to_first`).
+    crate::tv_focus::set_first(nav::Place::Home, move || focus.to_play());
     crate::stack::page(crate::refresh::refreshable(scroll())
         .element_ref(&page)
         .on_scroll(crate::tv_focus::root_scroll(nav::Place::Home, page))

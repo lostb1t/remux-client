@@ -1,0 +1,45 @@
+# A place chosen in the menu starts on its first element, not on the menu button: Discover on its
+# search field, Media on its first tile, Live TV on Channels, Home on the hero's Play.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: ../lib/open-page.yaml
+    env:
+      PAGE: Discover
+- extendedWaitUntil:
+    visible:
+      text: Search
+      focused: true
+    timeout: 15000
+
+- runFlow:
+    file: ../lib/menu-to.yaml
+    env:
+      PAGE: Media
+- extendedWaitUntil:
+    visible:
+      text: Favorites
+      focused: true
+    timeout: 15000
+
+- runFlow:
+    file: ../lib/menu-to.yaml
+    env:
+      PAGE: Live TV
+- extendedWaitUntil:
+    visible:
+      text: Channels
+      focused: true
+    timeout: 15000
+
+- runFlow:
+    file: ../lib/menu-to.yaml
+    env:
+      PAGE: Home
+- extendedWaitUntil:
+    visible:
+      text: Play|Resume
+      focused: true
+    timeout: 15000

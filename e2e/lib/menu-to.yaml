@@ -1,0 +1,33 @@
+# From the first element of a place's first page: up into the menu (it opens on the place shown),
+# up or down to PAGE, OK.
+appId: com.github.remux
+---
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            notVisible: Settings
+          commands:
+            - pressKey: Remote Dpad Up
+            - waitForAnimationToEnd:
+                timeout: 1000
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 5000
+# Up to the top of the panel, then down to PAGE.
+- repeat:
+    times: 4
+    commands:
+      - pressKey: Remote Dpad Up
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: ${PAGE}
+              focused: true
+          commands:
+            - pressKey: Remote Dpad Down
+- pressKey: Remote Dpad Center

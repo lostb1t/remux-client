@@ -22,6 +22,7 @@ mod tmdb;
 mod tv_focus;
 mod user_data;
 mod pages;
+mod profile;
 mod refresh;
 mod player;
 mod shell;

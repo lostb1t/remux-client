@@ -104,8 +104,8 @@ pub fn menu_heading(label: impl Into<SharedString>) -> Text {
 }
 
 /// What explains a group, under it.
-pub fn menu_note(note: impl Into<SharedString>) -> Text {
-    text(note.into()).px_4().text_size(px(14.0)).text_color(theme().muted_foreground)
+pub fn menu_note(note: impl IntoReactive<SharedString>) -> Text {
+    text(note).px_4().text_size(px(14.0)).text_color(theme().muted_foreground)
 }
 
 /// A row of a choice: its name, what it is under it (a version's video, a device's model), and

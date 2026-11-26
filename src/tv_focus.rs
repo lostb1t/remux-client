@@ -8,6 +8,7 @@
 //! are taken from Android with `capture_keys` where a part sends them elsewhere.
 
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -108,10 +109,13 @@ impl Scope {
     /// To the hero's play button, with the page back at its top.
     pub fn to_play(self) -> bool {
         let Some((play, page)) = self.with(|targets| (targets.play, targets.page)) else { return false };
+        let moved = focus(play);
+        // The page to its top after the focus: Android brings a focused view into view itself,
+        // which cut a scroll started before it short (the hero half on screen).
         if let Some(page) = page {
             page.scroll_to_offset(px(0.0), true);
+            set_timeout(std::time::Duration::from_millis(300), move || page.scroll_to_offset(px(0.0), true));
         }
-        let moved = focus(play);
         if moved {
             // At the top at once, not when the scroll has come there: the menu over it shows,
             // for up to reach.
@@ -205,8 +209,24 @@ pub fn closed(place: crate::nav::Place, depth: usize) {
 #[derive(Clone, Copy, Default)]
 struct GiveBack(Option<ElementRef>);
 
-/// Gives the focus back to what opened a page that closed: made once, by the shell.
+/// The first element of `place` to get the focus once the place shows (a view that is not shown
+/// takes none). Through the shell: a timer of the caller's (a row of the menu, which closes with
+/// the press) would go with it.
+#[derive(Clone, Copy, Default, PartialEq)]
+struct FirstLater(Option<(crate::nav::Place, u64)>);
+
+pub fn to_first_later(place: crate::nav::Place) {
+    global::<FirstLater>().set(FirstLater(Some((place, next_id()))));
+}
+
+/// Gives the focus back to what opened a page that closed, and to a place's first element: made
+/// once, by the shell.
 pub fn give_back() {
+    effect(|| {
+        if let FirstLater(Some((place, _))) = global::<FirstLater>().get() {
+            set_timeout(std::time::Duration::from_millis(150), move || to_first(place));
+        }
+    });
     effect(|| {
         if let GiveBack(Some(opener)) = global::<GiveBack>().get() {
             // Once NSH's slide has shown the page under it (300 ms).
@@ -274,7 +294,32 @@ pub fn to_top(place: crate::nav::Place) {
         page.scroll_to_offset(px(0.0), true);
     }
     global::<Scrolled>().update(|scrolled| scrolled.0[place.index()] = false);
-    if !(place == crate::nav::Place::Home && Scope::top().to_play()) {
+    to_first(place);
+}
+
+thread_local! {
+    /// What the remote starts on in each place's first page: Home's Play, Discover's search
+    /// field, Media's first tile, Live TV's Channels.
+    static FIRSTS: RefCell<HashMap<crate::nav::Place, Rc<dyn Fn() -> bool>>> = RefCell::default();
+}
+
+/// The first page of `place` starts on what `focus` gives the focus to (whether it could).
+pub fn set_first(place: crate::nav::Place, focus: impl Fn() -> bool + 'static) {
+    FIRSTS.with(|firsts| firsts.borrow_mut().insert(place, Rc::new(focus)));
+}
+
+/// The first page of `place` starts on `target`.
+pub fn set_first_view(place: crate::nav::Place, target: ElementRef) {
+    set_first(place, move || {
+        target.focus();
+        true
+    });
+}
+
+/// The focus to the first element of `place`'s first page (else the menu).
+pub fn to_first(place: crate::nav::Place) {
+    let first = FIRSTS.with(|firsts| firsts.borrow().get(&place).cloned());
+    if !first.is_some_and(|first| first()) {
         to_menu();
     }
 }

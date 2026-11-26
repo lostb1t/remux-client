@@ -11,8 +11,14 @@ use crate::server::{self as api, MediaQuery};
 use crate::tv_focus;
 use crate::ui::{self, tokens::is_tv};
 
-/// The room above and below a row's cards, for a poster that grows with the remote's focus.
+/// The room below a row's cards, for a poster that grows with the remote's focus.
 const FOCUS_ROOM: f32 = 16.0;
+
+/// The room between a row's title and its cards: on a TV what a focused poster grows into (6% of
+/// it, about 12 points), on a phone a little.
+fn top_room() -> f32 {
+    if is_tv() { 12.0 } else { 6.0 }
+}
 
 /// Two rows of placeholders while what rows there are is asked for.
 pub fn row_skeletons() -> impl IntoElement {
@@ -61,7 +67,6 @@ pub fn media_row(title: String, query: MediaQuery, variant: CardVariant, place: 
     let count = move || items.with(|items| items.as_ref().map_or(0, Vec::len));
     let loaded = move || items.with(|items| items.is_some());
     view()
-        .gap_2()
         .style_when(move || loaded() && count() == 0, |s| s.hidden())
         // Up and down go to the first card of the row above or below (or Play above the first),
         // not to the card nearest to the one with the focus.
@@ -90,7 +95,7 @@ pub fn media_row(title: String, query: MediaQuery, variant: CardVariant, place: 
                     .flex_row()
                     .gap(px(ui::card_gap()))
                     .pl_6()
-                    .py(px(FOCUS_ROOM))
+                    .pt(px(top_room())).pb(px(FOCUS_ROOM))
                     .overflow_hidden()
                     .children((0..8).map(move |_| ui::skeleton_box(px(width).into(), px(height).into())))
             })
@@ -110,13 +115,13 @@ pub fn media_row(title: String, query: MediaQuery, variant: CardVariant, place: 
                             load();
                         }
                     })
-                    .h(px(height + 2.0 * FOCUS_ROOM + if variant == CardVariant::Square { 44.0 } else { 0.0 }))
+                    .h(px(height + top_room() + FOCUS_ROOM + if variant == CardVariant::Square { 44.0 } else { 0.0 }))
                     .child(
                         view()
                             .flex_row()
                             .gap(px(ui::card_gap()))
                             .px_6()
-                            .py(px(FOCUS_ROOM))
+                            .pt(px(top_room())).pb(px(FOCUS_ROOM))
                             .child(each(
                                 move || items.get().unwrap_or_default(),
                                 |media: &Media| media.id,

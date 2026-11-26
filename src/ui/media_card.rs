@@ -124,6 +124,9 @@ fn card(me: ElementRef, media: impl Fn() -> Option<Media> + Copy + 'static, vari
             server.image_url_at(&media, kind, pixels).or_else(|| server.image_url_at(&media, ImageType::Backdrop, pixels))
         })
     };
+    // Without a picture of its own kind (a poster, a thumb), its title on the card: on the
+    // backdrop it falls back to, or on nothing at all (Remux's fallback).
+    let untitled = move || media().and_then(|media| server().image_url_at(&media, kind, pixels).is_none().then_some(media.title));
     let label = move || media().and_then(|media| episode_label(&media, landscape));
     let progress_value = move || media().and_then(|media| media.progress()).map(|progress| progress as f32);
 
@@ -176,6 +179,26 @@ fn card(me: ElementRef, media: impl Fn() -> Option<Media> + Copy + 'static, vari
                 .transition_opacity()
                 .duration(motion::BASE),
         )
+        .child(when(
+            move || untitled().is_some(),
+            move || {
+                view()
+                    .absolute()
+                    .inset_0()
+                    .p_3()
+                    .justify_center()
+                    .items_center()
+                    .bg(scrim())
+                    .child(
+                        text(move || SharedString::from(untitled().unwrap_or_default()))
+                            .text_center()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .number_of_lines(4)
+                            .text_color(theme().foreground),
+                    )
+            },
+        ))
         .child(when(move || media().is_some_and(|media| media.is_watchlist()), || badge(Phosphor::BookmarkSimpleFill, true)))
         .child(when(move || media().is_some_and(|media| media.is_watched()), || badge(Phosphor::CheckCircleFill, false)))
         .child(when(

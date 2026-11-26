@@ -14,10 +14,10 @@ appId: com.github.remux
     timeout: 15000
 
 # Down from the menu button leaves it, to the search field, and again to the filters.
-- pressKey: Remote Dpad Down
+# The remote starts on the search field; down is the chips.
 - extendedWaitUntil:
-    notVisible:
-      text: Menu
+    visible:
+      text: Search
       focused: true
     timeout: 5000
 - pressKey: Remote Dpad Down

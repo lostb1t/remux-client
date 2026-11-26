@@ -71,22 +71,48 @@ fn season_episodes(seasons: Vec<Media>, current: Option<Uuid>, place: usize) -> 
             let row = element_ref();
             scroll().element_ref(&row).horizontal().scrollbar(false).child(view().px_6().child(ui::chips(options, move || selected.get(), move |season| selected.set(season), Some(row))))
         })
-        .child(dynamic(move || {
-            let season = selected.get();
-            untracked(move || episodes(season, place, focus).into_element())
-        }))
+        .child(episodes(selected, place, focus))
 }
 
-/// The episodes of `season`, in a row.
-fn episodes(season: Uuid, place: usize, focus: tv_focus::Scope) -> impl IntoElement {
+/// The episodes of the season `selected` says, in a row. Another season fades the row out, and in
+/// again with its episodes once they are there: the row is not emptied while they load (the page
+/// under it jumped up and down).
+fn episodes(selected: Signal<Uuid>, place: usize, focus: tv_focus::Scope) -> impl IntoElement {
     let list = resource(
-        move || Some(crate::user_data::last().seq),
-        move |_, _| async move {
+        move || Some((selected.get(), crate::user_data::last().seq)),
+        move |(season, _), _| async move {
             let query = MediaQuery::builder().parent(season).types(vec![MediaType::Episode]).limit(500).build();
             server().media(&query).await.map_err(|error| error.to_string())
         },
     );
+    // What the row shows: the episodes of the season before, until the new ones are in.
+    let shown = signal(Vec::<Media>::new());
+    let opacity = animated_value(1.0);
+    let row = element_ref();
+    let still = reduce_motion();
+    // Out as soon as another season is chosen.
+    let first_season = untracked(|| selected.get());
+    effect(move || {
+        if selected.get() != first_season && !still {
+            opacity.timing(0.0, motion::INSTANT, Easing::EaseOut);
+        }
+    });
+    // In with the new ones.
+    effect(move || {
+        let Some(found) = list.get() else { return };
+        untracked(|| {
+            let other_season = shown.with(|shown| shown.first().map(|episode| episode.season_id) != found.first().map(|episode| episode.season_id));
+            shown.set(found);
+            if other_season {
+                row.scroll_to_offset(px(0.0), false);
+            }
+            if !still {
+                opacity.timing(1.0, motion::FAST, Easing::EaseOut);
+            }
+        });
+    });
     view()
+        .bind_opacity(&opacity)
         .when(is_tv(), move |v| {
             v.capture_keys(tv_focus::capture(&["up", "down"])).on_key_down(move |event: &KeyEvent| match event.key.as_ref() {
                 "ArrowDown" => {
@@ -99,9 +125,9 @@ fn episodes(season: Uuid, place: usize, focus: tv_focus::Scope) -> impl IntoElem
             })
         })
         .child(
-            scroll().horizontal().scrollbar(false).child(
+            scroll().element_ref(&row).horizontal().scrollbar(false).child(
                 view().flex_row().gap_4().px_6().py(px(12.0)).child(each(
-                    move || list.get().unwrap_or_default(),
+                    move || shown.get(),
                     |episode: &Media| episode.id,
                     move |episode, at| {
                         let card = episode_card(episode.get_untracked());

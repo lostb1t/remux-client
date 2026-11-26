@@ -19,8 +19,12 @@ appId: com.github.remux
 - assertNotVisible:
     text: Menu
     focused: true
+# Up from the first row opens the menu, on Live TV.
 - pressKey: Remote Dpad Up
 - pressKey: Remote Dpad Up
-- assertVisible:
-    text: Menu
-    focused: true
+- extendedWaitUntil:
+    visible:
+      text: Live TV
+      focused: true
+    timeout: 3000
+- assertVisible: Settings

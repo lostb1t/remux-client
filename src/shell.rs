@@ -22,8 +22,13 @@ fn glyph(place: Place) -> nsh_icon::Icon {
     }
 }
 
-/// The first page of a place.
+/// The first page of a place, under an owner of its own: what a page provides (its remote's
+/// `tv_focus::Scope`) is its own, not the shell's, where the next place's would take its place.
 fn place_page(place: Place) -> AnyElement {
+    dynamic(move || untracked(move || place_page_now(place).into_element())).into_element()
+}
+
+fn place_page_now(place: Place) -> AnyElement {
     match place {
         Place::Home => home(),
         Place::Media => library::media(),
@@ -52,6 +57,8 @@ fn route_page(route: &Route) -> AnyElement {
 /// The pages with their navigation. Every place keeps its stack while another one shows, with
 /// where it was scrolled to, as a tab bar does.
 pub fn shell() -> impl IntoElement {
+    // The device profile and the speed of the line, for the server (`profile.rs`).
+    crate::profile::start();
     // Chromecasts on the network, to cast to from a phone.
     if !is_tv() {
         crate::cast::start();
@@ -197,10 +204,32 @@ fn secondary_text_or(current: bool) -> AdaptiveColor {
 /// A TV's menu: a glass pill in the top left corner with the user and where they are.
 fn tv_menu() -> impl IntoElement {
     let target = element_ref();
-    let first = element_ref();
     tv_focus::set_menu(target);
     tv_focus::give_back();
     let open = signal(false);
+    // Whether Back opened it (at the top of a page): Back again leaves (Home) or goes Home. Opened
+    // by the remote coming to it, Back closes it, back into the page.
+    let by_back = stored(false);
+    // The rows of the panel, in order: the places, then Settings. The remote goes along them
+    // itself, so it never falls back onto the pill (which would open the panel again).
+    let rows: [ElementRef; 5] = std::array::from_fn(|_| element_ref());
+    let current_row = move || Place::ALL.iter().position(|place| *place == nav::place()).unwrap_or(0);
+    let at = stored(0usize);
+    let open_panel = move |back: bool| {
+        if open.get_untracked() {
+            return;
+        }
+        by_back.with(|by| *by = back);
+        open.set(true);
+        let row = current_row();
+        at.with(|at| *at = row);
+        set_timeout(std::time::Duration::from_millis(50), move || rows[row].focus());
+    };
+    let close_to_page = move || {
+        open.set(false);
+        let place = nav::place();
+        tv_focus::to_first_later(place);
+    };
     // Back on a TV, on the first page of a place (Remux: the newest thing closes first, and only
     // the first page leaves): away from the top it goes up; at the top it opens the menu; with
     // the menu open it leaves the app on Home, else it goes Home. A page over the place is
@@ -208,12 +237,16 @@ fn tv_menu() -> impl IntoElement {
     on_back_press(move || {
         let place = nav::place();
         if open.get_untracked() {
+            if !by_back.with(|by| *by) {
+                close_to_page();
+                return true;
+            }
             if place == Place::Home {
                 return false;
             }
             open.set(false);
             nav::go(Place::Home);
-            target.focus();
+            tv_focus::to_first_later(Place::Home);
             return true;
         }
         if nav::can_go_back() {
@@ -223,14 +256,15 @@ fn tv_menu() -> impl IntoElement {
             tv_focus::to_top(place);
             return true;
         }
-        open.set(true);
-        set_timeout(std::time::Duration::from_millis(50), move || first.focus());
+        open_panel(true);
         true
     });
+    // A place: the panel closes, and the remote starts on the place's first element (once the
+    // place shows: a view that is not shown takes no focus).
     let go = move |place: Place| {
         open.set(false);
         nav::go(place);
-        target.focus();
+        tv_focus::to_first_later(place);
     };
     view()
         .absolute()
@@ -241,52 +275,35 @@ fn tv_menu() -> impl IntoElement {
         // stand over the page's rows, and a page over the place has Back.
         .style_when(move || !open.get() && (nav::can_go_back() || !tv_focus::at_top(nav::place())), |s| s.invisible().pointer_events(PointerEvents::None))
         .child(
+            // The pill: the remote coming to it opens the panel (a view with a button's role, not
+            // `button`: it takes the focus event, which `button` has not).
             view()
-                // Down from the pill goes to the hero's play button, not to what Android finds
-                // nearest; with the panel open, into the panel. A page without a hero (Media,
-                // Discover, Live TV) is Android's: the nearest view under the pill.
-                .capture_keys(move || {
-                    if open.get() || nav::place() == Place::Home {
-                        tv_focus::capture(&["down"])
-                    } else {
-                        nsh_core::keyboard::KeyCapture::None
-                    }
-                })
-                .on_key_down(move |event: &nsh_core::keyboard::KeyEvent| {
-                    if event.key.as_ref() == "ArrowDown" {
-                        if open.get_untracked() {
-                            first.focus();
-                        } else {
-                            tv_focus::Scope::top().to_play();
-                        }
-                    }
-                })
                 .self_start()
+                .element_ref(&target)
+                .focusable(true)
+                .role(AccessibilityRole::Button)
+                .label("Menu")
+                .rounded_full()
+                .focus_visible(|s| s.outline(px(4.0)).outline_offset(px(3.0)).outline_color(theme().ring))
+                .on_focus(move || open_panel(false))
+                .on_press(move || {
+                    if open.get_untracked() {
+                        close_to_page();
+                    } else {
+                        open_panel(false);
+                    }
+                })
                 .child(
-                    button()
-                        .element_ref(&target)
-                        .accessibility_label("Menu")
-                        .on_press(move || {
-                            let now = !open.get_untracked();
-                            open.set(now);
-                            if now {
-                                set_timeout(std::time::Duration::from_millis(50), move || first.focus());
-                            }
-                        })
-                        .child(
-                            ui::glass_surface()
-                                .flex_row()
-                                .items_center()
-                                .gap_3()
-                                .py_2()
-                                .pl_3()
-                                .pr_6()
-                                .rounded_full()
-                                .child(user_avatar(28.0))
-                                .child(text(move || nav::place().label()).text_lg().font_weight(FontWeight::SEMIBOLD).text_color(theme().foreground)),
-                        )
+                    ui::glass_surface()
+                        .flex_row()
+                        .items_center()
+                        .gap_3()
+                        .py_2()
+                        .pl_3()
+                        .pr_6()
                         .rounded_full()
-                        .focus_visible(|s| s.outline(px(4.0)).outline_offset(px(3.0)).outline_color(theme().ring)),
+                        .child(user_avatar(28.0))
+                        .child(text(move || nav::place().label()).text_lg().font_weight(FontWeight::SEMIBOLD).text_color(theme().foreground)),
                 ),
         )
         // The panel: the places, and the settings (Remux's TV menu).
@@ -298,17 +315,27 @@ fn tv_menu() -> impl IntoElement {
                     .rounded(px(32.0))
                     .p_3()
                     .gap_3()
-                    // Left and right stay in the panel (Remux): Android would leave it for the page.
-                    .capture_keys(tv_focus::capture(&["left", "right"]))
+                    // The remote stays in the panel: up and down along its rows (not onto the pill,
+                    // nor out to the page); left and right stay (Remux).
+                    .capture_keys(tv_focus::capture(&["up", "down", "left", "right"]))
+                    .on_key_down(move |event: &nsh_core::keyboard::KeyEvent| {
+                        let now = at.with(|at| *at);
+                        let next = match event.key.as_ref() {
+                            "ArrowUp" => now.saturating_sub(1),
+                            "ArrowDown" => (now + 1).min(rows.len() - 1),
+                            _ => return,
+                        };
+                        at.with(|at| *at = next);
+                        rows[next].focus();
+                    })
                     .child(ui::menu_group(
                         Place::ALL
                             .into_iter()
                             .enumerate()
-                            // The remote starts on the place shown (Remux).
-                            .map(|(_, place)| ui::menu_row_at((place == nav::place()).then_some(first), Some(glyph(place)), place.label(), false, move || go(place)))
+                            .map(|(index, place)| ui::menu_row_at(Some(rows[index]), Some(glyph(place)), place.label(), false, move || go(place)))
                             .collect(),
                     ))
-                    .child(ui::menu_group(vec![ui::menu_row(Some(Phosphor::GearSix), "Settings", true, move || {
+                    .child(ui::menu_group(vec![ui::menu_row_at(Some(rows[4]), Some(Phosphor::GearSix), "Settings", true, move || {
                         open.set(false);
                         crate::components::open_settings();
                     })]))

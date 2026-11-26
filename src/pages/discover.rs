@@ -205,16 +205,26 @@ fn header(
     let focus = crate::tv_focus::Scope::current();
     let genre_chip = element_ref();
     focus.set_top(genre_chip);
+    // The remote starts on the search field (`tv_focus::to_first`).
+    let search_field = element_ref();
+    crate::tv_focus::set_first_view(crate::nav::Place::Discover, search_field);
     // No side padding of its own: a grid's header has the grid's.
     view()
         .gap_4()
         .pb_4()
         .child(page_header("Discover", false))
-        .child(ui::field(draft, "Search", move |query: &str| {
-            let query = query.trim().to_owned();
-            filter().update(|filter| filter.search = query);
-            searched.update(|count| *count += 1);
-        }))
+        .child({
+            let submit = move |query: &str| {
+                let query = query.trim().to_owned();
+                filter().update(|filter| filter.search = query);
+                searched.update(|count| *count += 1);
+            };
+            if crate::ui::tokens::is_tv() {
+                tv_search(draft, submit, search_field).into_element()
+            } else {
+                ui::field_named(ui::FieldKind::Text, draft, "Search", submit, search_field).into_element()
+            }
+        })
         .child(
             scroll().horizontal().scrollbar(false).child(
                 view()
@@ -322,3 +332,45 @@ fn sort_list(open: Signal<bool>, remux: bool, current: Sort) -> impl IntoElement
     )
 }
 
+/// The search on a TV: a button in the field's shape, which the remote can stand on (a text field
+/// with the focus opens the keyboard at once, which takes the remote's keys); OK opens the field,
+/// with the keyboard, and sending it closes it again. `me` names the button.
+fn tv_search(draft: Signal<String>, on_submit: impl Fn(&str) + Copy + 'static, me: ElementRef) -> impl IntoElement {
+    let editing = signal(false);
+    let field = element_ref();
+    view().child(
+        when(move || editing.get(), move || {
+            // The field, focused once it is there.
+            set_timeout(std::time::Duration::from_millis(50), move || field.focus());
+            ui::field_named(ui::FieldKind::Text, draft, "Search", move |query: &str| {
+                editing.set(false);
+                on_submit(query);
+            }, field)
+        })
+        .otherwise(move || {
+            view()
+                .element_ref(&me)
+                .focusable(true)
+                .role(AccessibilityRole::Button)
+                .label("Search")
+                .flex_row()
+                .items_center()
+                .gap_3()
+                .px_4()
+                .py(px(14.0))
+                .rounded_full()
+                .bg(crate::ui::tokens::group())
+                .focus_visible(|s| s.outline(px(3.0)).outline_offset(px(3.0)).outline_color(theme().ring))
+                .on_press(move || editing.set(true))
+                .child(nsh_icon::icon(Phosphor::MagnifyingGlass).size(px(20.0)).text_color(theme().muted_foreground))
+                .child(
+                    text(move || {
+                        let now = draft.get();
+                        SharedString::from(if now.is_empty() { "Search".to_owned() } else { now })
+                    })
+                    .text_size(px(17.0))
+                    .text_color(move || if draft.with(String::is_empty) { theme().muted_foreground } else { theme().foreground }),
+                )
+        }),
+    )
+}

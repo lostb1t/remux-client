@@ -367,6 +367,30 @@ fn playback_page() -> impl IntoElement {
                         |on| crate::settings::update(|settings| settings.auto_quality = on),
                     )]))
                     .child(ui::menu_note("Picks the versions of a title that fit the connection, by the speed measured to the server."))
+                    // What was measured, and measuring again (Remux's).
+                    .child(ui::menu_group(vec![ui::menu_row(
+                        Some(Phosphor::Gauge),
+                        move || {
+                            SharedString::from(if crate::profile::measuring() {
+                                "Measuring…".to_owned()
+                            } else {
+                                "Measure again".to_owned()
+                            })
+                        },
+                        false,
+                        || {
+                            if !crate::profile::measuring() {
+                                crate::profile::retest();
+                            }
+                        },
+                    )]))
+                    .child(ui::menu_note(move || {
+                        SharedString::from(match (crate::profile::speed(), crate::profile::latency()) {
+                            (Some(bits), Some(ms)) => format!("Connection to the server: {:.0} Mbit/s · {ms} ms", bits as f64 / 1_000_000.0),
+                            (Some(bits), None) => format!("Connection to the server: {:.0} Mbit/s", bits as f64 / 1_000_000.0),
+                            _ => "Connection to the server: not measured yet".to_owned(),
+                        })
+                    }))
             },
         ))
         .child(text(hdr.describe()).text_center().text_size(px(13.0)).text_color(theme().muted_foreground))
