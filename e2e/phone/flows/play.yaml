@@ -1,0 +1,52 @@
+# Playing on a phone: The Matrix (a film the test server plays), found with Discover's search, its
+# title page, Play, the choice of its version, the player, and its way out.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 30000
+- tapOn:
+    id: tab-discover
+- extendedWaitUntil:
+    visible: Search
+    timeout: 15000
+- tapOn: Search
+- inputText: The Matrix
+# (Enter sends it and closes the keyboard: no hideKeyboard, whose Back would leave Discover.)
+- pressKey: Enter
+- waitForAnimationToEnd:
+    timeout: 2000
+- extendedWaitUntil:
+    visible: The Matrix
+    timeout: 20000
+# Not the search field, which says The Matrix too: the first card under it.
+- tapOn:
+    text: The Matrix
+    index: 1
+- extendedWaitUntil:
+    visible:
+      id: page-back
+    timeout: 15000
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 15000
+- tapOn: Play|Resume
+# Which version (also with one): the first, by what its video says.
+- extendedWaitUntil:
+    visible: Version
+    timeout: 15000
+- tapOn:
+    text: ".*(Direct Play|Direct Stream|Transcode).*"
+    index: 0
+# The player, with its controls and its way out.
+- extendedWaitUntil:
+    visible: Play or pause
+    timeout: 60000
+- tapOn: Close
+- extendedWaitUntil:
+    visible:
+      id: page-back
+    timeout: 10000
+- assertNotVisible: Play or pause

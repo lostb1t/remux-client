@@ -85,6 +85,9 @@ pub fn shell() -> impl IntoElement {
                 // Invisible, not hidden: a hidden place has no size, and its rows' native lists
                 // lose their cells for good (seen on Android with NSH 0.7.0).
                 .style_when(move || nav::place() != place, |s| s.invisible().pointer_events(PointerEvents::None))
+                // Not read out either: a screen reader (and the e2e flows) would find what is on
+                // the places that do not show.
+                .accessibility_elements_hidden(move || nav::place() != place)
                 .child(if is_tv() {
                     // A TV: NSH's stack, which gives the remote's focus back to where a page was
                     // opened from.
@@ -107,7 +110,14 @@ pub fn shell() -> impl IntoElement {
                     // A phone: the app's own stack, with the page below shown under a swipe.
                     view()
                         .flex_1()
-                        .child(view().absolute().inset_0().style_when(move || !crate::stack::root_shown(place)(), |s| s.invisible()).child(place_page(place)))
+                        .child(
+                            view()
+                                .absolute()
+                                .inset_0()
+                                .style_when(move || !crate::stack::root_shown(place)(), |s| s.invisible())
+                                .accessibility_elements_hidden(move || crate::nav::depth(place) > 0)
+                                .child(place_page(place)),
+                        )
                         .child(each(
                             move || nav::routes(place),
                             |route: &Route| route.key(),
@@ -153,6 +163,9 @@ fn tab_bar() -> impl IntoElement {
             .gap(px(2.0))
             .rounded_full()
             .selected(current)
+            // For the e2e flows (Maestro's `id:`): a name of its own, apart from the system's own
+            // Home and Back buttons, which Android shows with the same names.
+            .test_id(&format!("tab-{}", place.label().to_lowercase().replace(' ', "-")))
             .accessibility_label(place.label())
             .text_color(move || secondary_text_or(current()))
             .transition_colors()
@@ -188,6 +201,7 @@ fn tab_bar() -> impl IntoElement {
                         .items_center()
                         .justify_center()
                         .rounded_full()
+                        .test_id("tab-settings")
                         .accessibility_label("Settings")
                         .active(|s| s.bg(theme().accent))
                         .on_press(crate::components::open_settings)

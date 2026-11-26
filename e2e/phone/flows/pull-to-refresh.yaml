@@ -1,0 +1,25 @@
+# Pull to refresh on Home: pulled down from its top, the page asks the server again and shows
+# Home again (its hero and its rows).
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 30000
+# From below the hero (its carousel has a pull of its own), down.
+- swipe:
+    start: "50%, 72%"
+    end: "50%, 95%"
+    duration: 500
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 20000
+# The hero's own pull too.
+- swipe:
+    start: "50%, 20%"
+    end: "50%, 60%"
+    duration: 500
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 20000

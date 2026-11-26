@@ -1,15 +1,20 @@
-name: End-to-end (Android TV)
+name: End-to-end
 
-# Runs the flows in e2e/ (Maestro) on an Android TV emulator, with the APK of this run: the
-# `android-apk` artifact, which the nightly workflow makes first. The app signs in at its login
+# Runs the flows of e2e/ (Maestro) on Android emulators, side by side: the TV's in two halves, the
+# phone's, each on a runner of its own; and beside them the web app's tests (tests/web.test.tsx,
+# `nsh test --target web`) in a headless Chrome, which builds the app itself. With the APK of this run (the `android-apk` artifact, which
+# the nightly workflow makes first), or built here on a push or a pull request. The app signs in at its login
 # page (e2e/lib/login.yaml) on the server and with the user of the repository's secrets
 # E2E_SERVER, E2E_USERNAME and E2E_PASSWORD (a user of its own for this, not an admin).
 #
 # GitHub's Linux runners have KVM: it only has to be opened to the runner's user.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_call:
   # Alone, on the APK of an earlier run (artifacts last a day), to try the flows without a build:
-  #   gh workflow run e2e-android.yml -f run_id=<run>
+  #   gh workflow run e2e.yml -f run_id=<run>
   workflow_dispatch:
     inputs:
       run_id:
@@ -23,12 +28,40 @@ permissions:
   contents: read
 
 jobs:
+  # Pushed or a pull request: the APK first (the nightly hands its own over).
+  build:
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+    uses: ./.github/workflows/build-android.yml
+    secrets: inherit
+
   e2e:
+    needs: build
+    # Without the build (called, or by hand) too.
+    if: ${{ !cancelled() && needs.build.result != 'failure' }}
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: TV 1/2
+            kind: tv
+            shard: 1/2
+            image: system-images;android-36;android-tv;x86_64
+          - name: TV 2/2
+            kind: tv
+            shard: 2/2
+            image: system-images;android-36;android-tv;x86_64
+          - name: Phone
+            kind: phone
+            shard: ""
+            image: system-images;android-36;google_apis;x86_64
     env:
       MAESTRO_VERSION: 2.12.1
-      AVD_IMAGE: system-images;android-36;android-tv;x86_64
+      E2E_KIND: ${{ matrix.kind }}
+      E2E_SHARD: ${{ matrix.shard }}
+      AVD_IMAGE: ${{ matrix.image }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -108,7 +141,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-maestro
+          name: e2e-maestro-${{ matrix.kind }}-${{ strategy.job-index }}
           path: |
             ~/.maestro/tests
             ${{ runner.temp }}/emulator.log
@@ -118,3 +151,50 @@ jobs:
       - name: Clean up
         if: ${{ always() }}
         run: e2e/emulator.sh stop
+
+  # The web app in a browser, as a user: against the same test server. Needs no APK.
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up NSH
+        uses: ./.github/actions/setup-nsh
+        with:
+          targets: wasm32-unknown-unknown
+          cache-key: web
+
+      # As in build-web.yml: a clang for WebAssembly (zstd) and the wasm-bindgen CLI the crate pins.
+      - name: Install clang and the wasm-bindgen CLI
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang llvm
+          cargo install wasm-bindgen-cli --version 0.2.130 --locked
+          {
+            echo "CC_wasm32_unknown_unknown=clang"
+            echo "AR_wasm32_unknown_unknown=llvm-ar"
+          } >> "$GITHUB_ENV"
+
+      # The test engine has no environment: the server and the user go in a file of their own.
+      - name: Write the test server
+        env:
+          E2E_SERVER: ${{ secrets.E2E_SERVER }}
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          jq -rn '"export const server = \(env.E2E_SERVER | @json), username = \(env.E2E_USERNAME | @json), password = \(env.E2E_PASSWORD | @json);"' > tests/test-server.ts
+
+      - name: Run the web tests
+        run: nsh test tests/web.test.tsx --target web --junit web-results.xml
+
+      - name: Keep the results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-web
+          path: web-results.xml
+          if-no-files-found: ignore
+          retention-days: 7

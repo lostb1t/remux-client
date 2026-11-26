@@ -1,12 +1,31 @@
 # End-to-end tests
 
-[Maestro](https://maestro.dev) flows that drive the app on an Android TV emulator with the remote's
-keys, and check where the focus is.
+[Maestro](https://maestro.dev) flows that drive the app on Android emulators: a TV with the
+remote's keys (`tv/flows`), a phone with a finger (`phone/flows`), sharing `lib/` (signing in,
+opening a page, waiting).
 
 ```sh
-e2e/run.sh                 # all flows, on the emulator that is connected
-e2e/run.sh media-grid      # one flow
+e2e/run.sh                          # the TV's flows, on the emulator that is connected
+E2E_KIND=phone e2e/run.sh           # the phone's
+e2e/run.sh media-grid               # one flow
+E2E_SHARD=1/2 e2e/run.sh            # every other flow, from the first (CI runs halves side by side)
 ```
+
+The web app has tests of its own, in a browser: `tests/web.test.tsx` (`nsh test`, not Maestro),
+with the server and user in `tests/test-server.ts` (not in git):
+
+```sh
+echo 'export const server = "https://…", username = "…", password = "…";' > tests/test-server.ts
+nsh test tests/web.test.tsx --target web     # headless Chrome; phone size and a desktop's
+```
+
+On GitHub (`.github/workflows/e2e.yml`, on every push and pull request, and before a nightly
+release) the TV's flows run in two halves, the phone's and the web's beside them, each on a runner
+of its own.
+
+Our own buttons that share a name with Android's (the tab bar's Home, a page's Back) have test ids
+for the flows (`tab-home`, `tab-media`, `tab-discover`, `tab-live-tv`, `tab-settings`, `page-back`):
+Maestro sees the system's navigation bar too.
 
 What `run.sh` does:
 
@@ -16,7 +35,7 @@ What `run.sh` does:
    `src/config.rs` signs itself in. (Remux's session file does not apply: the NSH app keeps its
    session in NSH's storage. Writing that from here comes with CI.)
 
-`known-failing/search-focus.yaml` is not in the suite (run.sh runs `flows/`): Maestro's
+`tv/known-failing/search-focus.yaml` is not in the suite (run.sh runs `tv/flows/`): Maestro's
 `inputText` sets the field's text through the accessibility API, after which the field keeps the
 focus and the keyboard, and neither Back nor the remote's keys from Maestro get it out. Typed with
 the remote's keyboard (or `adb shell input text` and Enter), the app moves the focus to the first
@@ -29,3 +48,5 @@ page of a place, at its top (`grid-sideways`: up from a page over a place stays 
 
 `env.sh` has what Maestro needs: a JDK, adb, and a PATH without `flutter` (Maestro runs it at
 start up, and it can hang).
+
+The phone's `play` flow plays The Matrix, which the test server plays.

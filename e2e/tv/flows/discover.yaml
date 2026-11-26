@@ -6,7 +6,7 @@ appId: com.github.remux
 - launchApp:
     stopApp: true
 - runFlow:
-    file: ../lib/open-page.yaml
+    file: ../../lib/open-page.yaml
     env:
       PAGE: Discover
 - extendedWaitUntil:

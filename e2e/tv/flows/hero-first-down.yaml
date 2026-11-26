@@ -13,7 +13,7 @@ appId: com.github.remux
 # At once, while the hero is still opening.
 - pressKey: Remote Dpad Down
 - runFlow:
-    file: ../lib/wait.yaml
+    file: ../../lib/wait.yaml
     env:
       MS: 4000
 - assertNotVisible:

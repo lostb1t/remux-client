@@ -1,0 +1,25 @@
+# Home on a phone: the hero, then down through the rows (the hero goes off the screen), and back
+# to the top (the hero again).
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 30000
+- swipe:
+    start: "50%, 85%"
+    end: "50%, 15%"
+    duration: 400
+- swipe:
+    start: "50%, 85%"
+    end: "50%, 15%"
+    duration: 400
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertNotVisible: Play|Resume
+- scrollUntilVisible:
+    element: Play|Resume
+    direction: UP
+    timeout: 15000
+- assertVisible: Play|Resume

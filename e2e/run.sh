@@ -1,7 +1,11 @@
 #!/bin/bash
-# Runs the Maestro flows in e2e/flows on an Android TV emulator (or device).
+# Runs the Maestro flows of a kind of device on an emulator (or device): e2e/tv/flows on an Android
+# TV, e2e/phone/flows on an Android phone.
 #
-#   e2e/run.sh [flow-name ...]
+#   E2E_KIND=tv e2e/run.sh [flow-name ...]       (tv is the default)
+#   E2E_KIND=phone e2e/run.sh
+#   E2E_SHARD=1/2 e2e/run.sh                     the first of two halves of the flows (CI runs the
+#                                                halves on runners of their own, side by side)
 #
 # Environment:
 #   ADB_DEVICE            the device (default: the only one connected)
@@ -35,8 +39,18 @@ if [ -n "${REMUX_TEST_SERVER:-}" ] && [ -n "${REMUX_TEST_USERNAME:-}" ] && [ -n 
     "$here/lib/login.yaml" </dev/null
 fi
 
+kind="${E2E_KIND:-tv}"
 flows=("$@")
-[ ${#flows[@]} -eq 0 ] && flows=("$here"/flows/*.yaml) || flows=("${flows[@]/#/$here/flows/}")
+[ ${#flows[@]} -eq 0 ] && flows=("$here/$kind"/flows/*.yaml) || flows=("${flows[@]/#/$here/$kind/flows/}")
+# A shard: every n-th flow, from the i-th on.
+if [ -n "${E2E_SHARD:-}" ]; then
+  index="${E2E_SHARD%/*}"; total="${E2E_SHARD#*/}"
+  picked=()
+  for at in "${!flows[@]}"; do
+    [ $(( at % total )) -eq $(( index - 1 )) ] && picked+=("${flows[$at]}")
+  done
+  flows=("${picked[@]}")
+fi
 
 # Waits until the device answers (up to ~90 seconds): the connection to an emulator drops now and
 # then (`device offline`, `not found`) and is back a few seconds later.

@@ -65,6 +65,7 @@ fn back_button() -> impl IntoElement {
             .border_color(theme().border)
             .bg(scrim())
             .text_color(theme().foreground)
+            .test_id("page-back")
             .accessibility_label("Back")
             .transition_transform()
             .duration(motion::FAST)

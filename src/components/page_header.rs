@@ -20,6 +20,6 @@ pub fn page_header(title: impl Into<SharedString>, back: bool) -> View {
         .flex_row()
         .items_center()
         .gap_3()
-        .child((back && !is_tv()).then(|| ui::icon_button(ui::Size::Regular, Phosphor::CaretLeft, "Back", || { crate::stack::back(); })))
+        .child((back && !is_tv()).then(|| ui::icon_button(ui::Size::Regular, Phosphor::CaretLeft, "Back", || { crate::stack::back(); }).test_id("page-back")))
         .child(text(title.into()).flex_1().text_2xl().font_weight(FontWeight::BOLD).number_of_lines(1).text_color(theme().foreground))
 }

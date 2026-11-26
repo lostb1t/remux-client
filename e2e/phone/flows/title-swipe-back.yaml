@@ -1,0 +1,27 @@
+# A phone: the hero's picture opens the title's page; a swipe from the left edge takes it away
+# again, back to Home.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 30000
+- assertNotVisible:
+    id: page-back
+# The picture, over the title and the buttons.
+- tapOn:
+    point: "50%, 25%"
+- extendedWaitUntil:
+    visible:
+      id: page-back
+    timeout: 15000
+- swipe:
+    start: "1%, 50%"
+    end: "85%, 50%"
+    duration: 400
+- extendedWaitUntil:
+    notVisible:
+      id: page-back
+    timeout: 5000
+- assertVisible: Play|Resume

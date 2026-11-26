@@ -1,27 +1,34 @@
 #!/bin/bash
-# The Android TV emulator for the flows, on a machine with KVM (CI, a Linux box).
+# The Android emulator for the flows, on a machine with KVM (CI, a Linux box): a TV or a phone, as
+# E2E_KIND says (tv by default).
 #
-#   e2e/emulator.sh start    starts it (the AVD `tv` is made when it is not there) and waits until it
-#                            has booted
+#   e2e/emulator.sh start    starts it (its AVD, `tv` or `phone`, is made when it is not there) and
+#                            waits until it has booted
 #   e2e/emulator.sh stop
 #
 # The emulator gets 4 cores and 3 GB: with the picture drawn in software (there is no GPU) the
 # default of 2 cores leaves it too busy to answer adb now and then.
 #
-# Environment: AVD_IMAGE (default system-images;android-36;android-tv;x86_64), EMULATOR_LOG
-# (default /tmp/emulator.log; it is added to).
+# Environment: E2E_KIND (tv or phone), AVD_IMAGE (default: the TV's or the phone's image below),
+# EMULATOR_LOG (default /tmp/emulator.log; it is added to).
 set -euo pipefail
-image="${AVD_IMAGE:-system-images;android-36;android-tv;x86_64}"
+kind="${E2E_KIND:-tv}"
+case "$kind" in
+  tv) default_image="system-images;android-36;android-tv;x86_64"; device=tv_1080p ;;
+  phone) default_image="system-images;android-36;google_apis;x86_64"; device=pixel_6 ;;
+  *) echo "E2E_KIND is tv or phone" >&2; exit 2 ;;
+esac
+image="${AVD_IMAGE:-$default_image}"
 log="${EMULATOR_LOG:-/tmp/emulator.log}"
 
 case "${1:-start}" in
   start)
-    if ! avdmanager list avd | grep -q 'Name: tv$'; then
-      echo no | avdmanager create avd --force --name tv --device tv_1080p --package "$image"
+    if ! avdmanager list avd | grep -q "Name: $kind\$"; then
+      echo no | avdmanager create avd --force --name "$kind" --device "$device" --package "$image"
     fi
     # A session of its own (setsid): the emulator has to outlive the step that started it, and
     # nothing that cleans up after a step may take it along. How it ends goes in its log.
-    setsid nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd tv -no-window -no-audio -no-boot-anim \
+    AVD="$kind" setsid nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd "$AVD" -no-window -no-audio -no-boot-anim \
       -no-snapshot -gpu swiftshader_indirect -accel on -cores 4 -memory 3072; echo "emulator ended with status $? at $(date -u +%T)"' \
       >> "$log" 2>&1 < /dev/null &
     # Up to 10 minutes.

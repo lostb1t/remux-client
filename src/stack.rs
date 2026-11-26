@@ -92,6 +92,7 @@ pub fn layer(place: Place, depth: usize, content: AnyElement) -> impl IntoElemen
         })
         // Only the top page and the one under it are shown: the others are covered anyway.
         .style_when(move || nav::depth(place) > depth + 1, |s| s.invisible())
+        .accessibility_elements_hidden(move || nav::depth(place) > depth)
         .child(content)
 }
 

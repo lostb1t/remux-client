@@ -6,19 +6,19 @@ appId: com.github.remux
 - launchApp:
     stopApp: true
 - runFlow:
-    file: ../lib/open-page.yaml
+    file: ../../lib/open-page.yaml
     env:
       PAGE: Media
 - extendedWaitUntil:
     visible: Popular Movies
     timeout: 15000
 - runFlow:
-    file: ../lib/focus-tile.yaml
+    file: ../../lib/focus-tile.yaml
     env:
       TILE: Popular Movies
 - pressKey: Remote Dpad Center
 - runFlow:
-    file: ../lib/wait.yaml
+    file: ../../lib/wait.yaml
     env:
       MS: 4000
 

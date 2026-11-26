@@ -222,7 +222,8 @@ fn header(
             if crate::ui::tokens::is_tv() {
                 tv_search(draft, submit, search_field).into_element()
             } else {
-                ui::field_named(ui::FieldKind::Text, draft, "Search", submit, search_field).into_element()
+                // A name for the tests (`id:search`: the input inside it).
+                view().test_id("search").child(ui::field_named(ui::FieldKind::Text, draft, "Search", submit, search_field)).into_element()
             }
         })
         .child(

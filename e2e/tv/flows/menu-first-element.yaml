@@ -5,7 +5,7 @@ appId: com.github.remux
 - launchApp:
     stopApp: true
 - runFlow:
-    file: ../lib/open-page.yaml
+    file: ../../lib/open-page.yaml
     env:
       PAGE: Discover
 - extendedWaitUntil:
@@ -15,7 +15,7 @@ appId: com.github.remux
     timeout: 15000
 
 - runFlow:
-    file: ../lib/menu-to.yaml
+    file: ../../lib/menu-to.yaml
     env:
       PAGE: Media
 - extendedWaitUntil:
@@ -25,7 +25,7 @@ appId: com.github.remux
     timeout: 15000
 
 - runFlow:
-    file: ../lib/menu-to.yaml
+    file: ../../lib/menu-to.yaml
     env:
       PAGE: Live TV
 - extendedWaitUntil:
@@ -35,7 +35,7 @@ appId: com.github.remux
     timeout: 15000
 
 - runFlow:
-    file: ../lib/menu-to.yaml
+    file: ../../lib/menu-to.yaml
     env:
       PAGE: Home
 - extendedWaitUntil:

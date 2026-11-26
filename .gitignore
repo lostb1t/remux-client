@@ -7,3 +7,6 @@ target/
 /src/config.rs
 /android/out/
 /android/libs/
+
+# The test server and user of the web tests (tests/web.test.tsx): written by CI from its secrets.
+/tests/test-server.ts

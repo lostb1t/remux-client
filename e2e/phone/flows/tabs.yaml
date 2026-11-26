@@ -1,0 +1,28 @@
+# The tab bar of a phone: each place, and Home again.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 30000
+- tapOn:
+    id: tab-media
+- extendedWaitUntil:
+    visible: Favorites
+    timeout: 15000
+- tapOn:
+    id: tab-discover
+- extendedWaitUntil:
+    visible: Search
+    timeout: 15000
+- tapOn:
+    id: tab-live-tv
+- extendedWaitUntil:
+    visible: Channels
+    timeout: 15000
+- tapOn:
+    id: tab-home
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 15000

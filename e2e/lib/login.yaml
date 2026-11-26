@@ -19,7 +19,17 @@ appId: com.github.remux
       - tapOn: Password
       - inputText: ${PASSWORD}
       - hideKeyboard
+      # The page moves back down as the keyboard goes: a tap before that misses the button.
+      - waitForAnimationToEnd:
+          timeout: 2000
       - tapOn: Log In
+      - runFlow:
+          when:
+            visible: Log In
+          commands:
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - tapOn: Log In
       - extendedWaitUntil:
           visible: Play|Resume|Menu
           timeout: 60000

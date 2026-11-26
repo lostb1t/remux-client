@@ -6,7 +6,7 @@ appId: com.github.remux
 - launchApp:
     stopApp: true
 - runFlow:
-    file: ../lib/open-page.yaml
+    file: ../../lib/open-page.yaml
     env:
       PAGE: Media
 - extendedWaitUntil:
@@ -14,12 +14,12 @@ appId: com.github.remux
     timeout: 15000
 # Down from the menu button to the libraries, until Popular Movies has the focus; OK opens it.
 - runFlow:
-    file: ../lib/focus-tile.yaml
+    file: ../../lib/focus-tile.yaml
     env:
       TILE: Popular Movies
 - pressKey: Remote Dpad Center
 - runFlow:
-    file: ../lib/wait.yaml
+    file: ../../lib/wait.yaml
     env:
       MS: 4000
 
@@ -34,7 +34,7 @@ appId: com.github.remux
 # page of a place has it, at its top).
 - pressKey: Remote Dpad Up
 - runFlow:
-    file: ../lib/wait.yaml
+    file: ../../lib/wait.yaml
     env:
       MS: 1500
 - assertNotVisible:

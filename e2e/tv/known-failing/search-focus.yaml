@@ -5,7 +5,7 @@ appId: com.github.remux
 - launchApp:
     stopApp: true
 - runFlow:
-    file: ../lib/open-page.yaml
+    file: ../../lib/open-page.yaml
     env:
       PAGE: Discover
 - extendedWaitUntil:
@@ -20,7 +20,7 @@ appId: com.github.remux
     timeout: 5000
 - pressKey: Remote Dpad Center
 - runFlow:
-    file: ../lib/wait.yaml
+    file: ../../lib/wait.yaml
     env:
       MS: 1000
 - inputText: dune
@@ -29,7 +29,7 @@ appId: com.github.remux
     visible: Movies
     timeout: 15000
 - runFlow:
-    file: ../lib/wait.yaml
+    file: ../../lib/wait.yaml
     env:
       MS: 3000
 # The focus is on the first row of what was found: up from it is the filter above the rows.

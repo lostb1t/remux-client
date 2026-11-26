@@ -118,7 +118,7 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
         // the view on the web). A TV goes by the buttons.
         .child((kind == HeroKind::Home && !is_tv()).then(|| {
             let open = open.clone();
-            view().absolute().inset_0().accessibility_elements_hidden(true).on_press(open)
+            view().absolute().inset_0().test_id("hero-picture").accessibility_elements_hidden(true).on_press(open)
         }))
         // Fades into the page at the bottom, where the title and buttons stand.
         .child(

@@ -1,0 +1,26 @@
+# Settings on a phone: from the avatar in the tab bar, a page of it, and back.
+appId: com.github.remux
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Play|Resume
+    timeout: 30000
+- tapOn:
+    id: tab-settings
+- extendedWaitUntil:
+    visible: Library order
+    timeout: 10000
+- assertVisible: Log out
+- tapOn: Library order
+- extendedWaitUntil:
+    visible: Back to Settings
+    timeout: 10000
+- tapOn: Back to Settings
+- extendedWaitUntil:
+    visible: Log out
+    timeout: 5000
+- pressKey: Back
+- extendedWaitUntil:
+    notVisible: Log out
+    timeout: 5000
