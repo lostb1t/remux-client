@@ -33,17 +33,6 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # The NDK (about 1 GB) and the build tools, kept between runs: setup-android then only finds
-      # them there.
-      - name: Cache the Android SDK's packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/lib/android/sdk/ndk/27.3.13750724
-            /usr/local/lib/android/sdk/build-tools/36.0.0
-            /usr/local/lib/android/sdk/platforms/android-36
-          key: android-sdk-ndk27.3.13750724-bt36.0.0-p36
-
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -57,6 +46,13 @@ jobs:
 
       # The app's Java (ExoPlayer, the music service, ...) against the libraries it uses, which
       # are fetched from Maven (not in git): android/out/classes.dex, which nsh.json ships.
+      # The libraries the app's Java needs, a fixed list (fetch-libs.py), kept between runs.
+      - name: Cache the Java libraries
+        uses: actions/cache@v4
+        with:
+          path: android/libs
+          key: android-libs-${{ hashFiles('android/fetch-libs.py') }}
+
       - name: Build the app's Java
         run: |
           python3 android/fetch-libs.py

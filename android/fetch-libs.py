@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Downloads ExoPlayer (Media3) and what it needs at run time into android/libs, for nsh.json's
 "android.libraries": a small Maven resolver (the highest version asked for wins), no Gradle."""
-import os, re, sys, urllib.request, xml.etree.ElementTree as ET
+import os, re, sys, time, urllib.error, urllib.request, xml.etree.ElementTree as ET
 
 REPOS = ["https://dl.google.com/android/maven2", "https://repo1.maven.org/maven2"]
 ROOTS = [("androidx.media3", "media3-exoplayer", "1.11.1"), ("androidx.media3", "media3-exoplayer-hls", "1.11.1")]
@@ -9,13 +9,24 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libs")
 NS = "{http://maven.apache.org/POM/4.0.0}"
 
 def fetch(path):
+    """The file from the first repository that has it. Not there (404) goes on to the next one; a
+    network error is tried again a few times, as CI's network has a hiccup now and then (a jar
+    that went missing that way failed the build only later, at javac)."""
     for repo in REPOS:
-        try:
-            with urllib.request.urlopen(f"{repo}/{path}") as response:
-                return response.read()
-        except Exception:
-            continue
+        for attempt in range(4):
+            try:
+                with urllib.request.urlopen(f"{repo}/{path}", timeout=60) as response:
+                    return response.read()
+            except urllib.error.HTTPError as error:
+                if error.code == 404:
+                    break
+                print(f"retry {path}: HTTP {error.code}", file=sys.stderr)
+            except Exception as error:
+                print(f"retry {path}: {error}", file=sys.stderr)
+            time.sleep(2 * (attempt + 1))
     return None
+
+missing = []
 
 def pom(group, artifact, version):
     data = fetch(f"{group.replace('.', '/')}/{artifact}/{version}/{artifact}-{version}.pom")
@@ -38,7 +49,9 @@ while queue:
     wanted[key] = version
     root = pom(group, artifact, version)
     if root is None:
-        print("no pom", group, artifact, version); continue
+        print("no pom", group, artifact, version)
+        missing.append(f"{group}:{artifact}:{version} (pom)")
+        continue
     props = {"project.version": version}
     for p in (root.find(NS + "properties") or []):
         props[p.tag.replace(NS, "")] = (p.text or "").strip()
@@ -68,3 +81,9 @@ for (group, artifact), version in sorted(wanted.items()):
             print("got", name, len(data)); break
     else:
         print("NOTHING for", group, artifact, version)
+        missing.append(f"{group}:{artifact}:{version}")
+
+# Without all of them the app's Java does not build (or, worse, builds without what it needs at
+# run time): say so here.
+if missing:
+    sys.exit("could not fetch: " + ", ".join(missing))
