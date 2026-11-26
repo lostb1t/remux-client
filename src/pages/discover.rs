@@ -146,7 +146,10 @@ pub fn discover() -> AnyElement {
                                         MediaType::Audio | MediaType::Album | MediaType::MusicArtist => CardVariant::Square,
                                         _ => CardVariant::Poster,
                                     };
-                                    media_row(name.to_owned(), query, variant, Some(at), nav::open_media)
+                                    // A name for the tests: `id:results-movies` and so on.
+                                    view()
+                                        .test_id(&format!("results-{}", name.to_lowercase()))
+                                        .child(media_row(name.to_owned(), query, variant, Some(at), nav::open_media))
                                 },
                             ))))
                             .into_element()

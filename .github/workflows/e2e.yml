@@ -22,9 +22,10 @@ on:
         type: string
         required: true
 
-# Reading the artifact of another run (the manual start) needs `actions: read`.
+# Reading the artifact of another run (the manual start), and cancelling the run when a job
+# fails: `actions: write`.
 permissions:
-  actions: read
+  actions: write
   contents: read
 
 jobs:

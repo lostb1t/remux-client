@@ -40,6 +40,10 @@ case "${1:-start}" in
     snapshot_dir="$ANDROID_AVD_HOME/$kind.avd/snapshots/e2e"
     if [ -d "$snapshot_dir" ]; then
       echo "starting from the snapshot"
+      # The snapshot trusts the adb key kept with it (~/.android/adbkey, restored with it): an adb
+      # server that started before the restore has another one, and the emulator answers it with
+      # "unauthorized".
+      adb kill-server >/dev/null 2>&1 || true
       SNAPSHOT="-snapshot e2e -no-snapshot-save"; from_snapshot=1
     else
       SNAPSHOT="-no-snapshot-load -no-snapshot-save"; from_snapshot=0
@@ -47,8 +51,17 @@ case "${1:-start}" in
     AVD="$kind" SNAPSHOT="$SNAPSHOT" setsid nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd "$AVD" $SNAPSHOT -no-window -no-audio -no-boot-anim \
       -gpu swiftshader_indirect -accel on -cores 4 -memory 3072; echo "emulator ended with status $? at $(date -u +%T)"' \
       >> "$log" 2>&1 < /dev/null &
-    # Up to 10 minutes.
-    for _ in $(seq 1 120); do
+    # Up to 10 minutes (from a snapshot, up to 3, then booted without it).
+    for at in $(seq 1 120); do
+      if [ "$from_snapshot" = 1 ] && [ "$at" = 36 ]; then
+        echo "not up from the snapshot: booting without it"
+        adb emu kill >/dev/null 2>&1 || true
+        sleep 5
+        rm -rf "$snapshot_dir"
+        # Its end in the log is the snapshot's, not the next start's.
+        mv "$log" "$log.snapshot" 2>/dev/null || true
+        exec "$0" start
+      fi
       if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then
         if [ "$from_snapshot" = 1 ]; then
           adb wait-for-device

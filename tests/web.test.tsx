@@ -57,8 +57,10 @@ for (const size of sizes) {
     await app.press("id:tab-discover");
     await app.type("id:search", "The Matrix");
     await app.submit("id:search");
-    await app.waitFor("label:/^The Matrix$/ >> nth=0", { timeout: 20_000 });
-    await app.press("label:/^The Matrix$/ >> nth=0");
+    // The film: of the Movies row (the music has The Matrix too, first at a desktop's width).
+    const film = "id:results-movies >> label:/^The Matrix$/ >> nth=0";
+    await app.waitFor(film, { timeout: 20_000 });
+    await app.press(film);
     await app.waitFor("id:page-back", { timeout: 15_000 });
     await app.press(playButton);
     // Which version: the first, by what its video says.
