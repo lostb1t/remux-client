@@ -126,11 +126,14 @@ impl Capabilities {
     /// screen is asked (PLAN.md).
     fn nsh() -> Self {
         let hdr = display_hdr();
+        // What the decoders were asked (Android): a codec without a decoder in hardware is left
+        // to the server; where nothing could be asked, all of them.
+        let android = cfg!(target_os = "android") && hdr.known && hdr.decoders_known;
         Self {
             supports_h264: true,
-            supports_vp9: true,
-            supports_av1: true,
-            supports_hevc: true,
+            supports_vp9: !android || hdr.vp9_max.is_some(),
+            supports_av1: !android || hdr.av1_max.is_some(),
+            supports_hevc: !android || hdr.hevc_max.is_some(),
             supports_ac3: true,
             supports_eac3: true,
             supports_flac: true,
@@ -139,12 +142,13 @@ impl Capabilities {
             supports_vorbis: true,
             supports_mp3: true,
             supports_mkv: true,
-            // The picture as it is where the screen shows HDR, unless it is turned off in the
-            // settings; else the server makes it SDR.
-            supports_hdr: hdr.screen_shows_hdr() && !crate::settings::settings().hdr_off,
+            // The picture as it is where the screen shows HDR and the decoder takes it (HEVC 10
+            // bits with HDR10 or HDR10+), unless it is turned off in the settings; else the
+            // server makes it SDR (Remux's `hdr_output`).
+            supports_hdr: hdr.hdr_output() && !crate::settings::settings().hdr_off,
             native: true,
-            h264_max: None,
-            hevc_max: None,
+            h264_max: hdr.h264_max,
+            hevc_max: hdr.hevc_max,
             user_agent: "Remux".to_string(),
         }
     }
@@ -312,8 +316,9 @@ impl Capabilities {
         h264.extend(size(self.h264_max));
         let mut codec_profiles = vec![video_profile("h264", &h264)];
         if self.supports_hevc {
-            // A decoder without HEVC Main 10 plays 8 bits only.
-            let ten_bit = !(cfg!(target_os = "android") && self.native) ;
+            // A decoder without HEVC Main 10 plays 8 bits only (on Android the app asks the
+            // decoders, `DeviceInfo.java`; elsewhere 10 bits are taken as there).
+            let ten_bit = !(cfg!(target_os = "android") && self.native) || display_hdr().hevc_main10;
             let mut hevc = vec![
                 condition(
                     ProfileConditionType::EqualsAny,
@@ -327,8 +332,14 @@ impl Capabilities {
         }
         // With HDR on, the picture goes to the screen as it is. Dolby Vision files that have an
         // HDR10 (or HLG) layer to fall back on play as that, which a screen without Dolby Vision
-        // shows as well. A file that has only Dolby Vision (profile 5) needs the decoder for it,
-        // which the player does not use, so that is left to the server.
+        // shows as well. A file that has only Dolby Vision (profile 5) needs a decoder for Dolby
+        // Vision: a device with a Dolby Vision screen and such a decoder (an Android TV box, say)
+        // plays it, as ExoPlayer takes that decoder; elsewhere it is left to the server.
+        let decodes_dolby_vision = cfg!(target_os = "android") && self.native && {
+            let hdr = display_hdr();
+            hdr.dolby_vision && hdr.dolby_vision_decoder
+        };
+        let dolby_vision = dolby_vision || decodes_dolby_vision;
         let ranges = match (self.supports_hdr, dolby_vision) {
             (false, _) => "SDR",
             (true, false) => "SDR|HDR10|HLG|HDR10Plus|DOVIWithHDR10|DOVIWithHDR10Plus|DOVIWithHLG|DOVIWithSDR|DOVIWithEL|DOVIWithELHDR10Plus",
@@ -446,6 +457,16 @@ impl Capabilities {
 /// then (and where there is no such thing to ask).
 static DISPLAY_HDR: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
 
+/// The screen and the decoders' sizes (`DeviceInfo.displayInfo`), as its text.
+static DISPLAY_INFO: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
+pub fn set_display_info(text: &str) {
+    log::info!("display and decoders: {text}");
+    if let Ok(mut info) = DISPLAY_INFO.lock() {
+        *info = text.to_owned();
+    }
+}
+
 pub fn set_display_hdr(bits: i32) {
     log::info!("display HDR bits: {bits}");
     DISPLAY_HDR.store(bits, std::sync::atomic::Ordering::Relaxed);
@@ -462,11 +483,35 @@ pub struct DisplayHdr {
     /// Android calls the screen HDR.
     pub screen_hdr: bool,
     pub hevc_main10: bool,
+    pub hevc_hdr10: bool,
+    pub hevc_hdr10_plus: bool,
+    /// A decoder for Dolby Vision itself (`video/dolby-vision`).
+    pub dolby_vision_decoder: bool,
+    /// Whether the decoders were asked (`displayInfo`); then a size of None is no decoder in
+    /// hardware for that codec.
+    pub decoders_known: bool,
+    /// The screen in pixels (the long side first), and the largest picture the decoders in
+    /// hardware take for each codec.
+    pub screen: Option<(u32, u32)>,
+    pub h264_max: Option<(u32, u32)>,
+    pub hevc_max: Option<(u32, u32)>,
+    pub vp9_max: Option<(u32, u32)>,
+    pub av1_max: Option<(u32, u32)>,
 }
 
 impl DisplayHdr {
     pub fn screen_shows_hdr(&self) -> bool {
         self.dolby_vision || self.hdr10 || self.hlg || self.hdr10_plus || self.screen_hdr
+    }
+
+    /// Whether HDR video can go to the screen as it is: the screen shows it and the decoder takes
+    /// it (Android: HEVC 10 bits with an HDR profile).
+    pub fn hdr_output(&self) -> bool {
+        if cfg!(target_os = "android") {
+            self.screen_shows_hdr() && self.hevc_main10 && (self.hevc_hdr10 || self.hevc_hdr10_plus)
+        } else {
+            self.screen_shows_hdr()
+        }
     }
 
     /// For the settings, to see what a device says.
@@ -479,11 +524,32 @@ impl DisplayHdr {
             .filter(|(on, _)| *on)
             .map(|(_, name)| name)
             .collect();
-        match (formats.is_empty(), self.screen_hdr) {
-            (true, false) => "Screen: SDR".to_owned(),
-            (true, true) => "Screen: HDR".to_owned(),
-            (false, _) => format!("Screen: {}", formats.join(", ")),
+        let screen = match (formats.is_empty(), self.screen_hdr) {
+            (true, false) => "SDR".to_owned(),
+            (true, true) => "HDR".to_owned(),
+            (false, _) => formats.join(", "),
+        };
+        let size = |size: Option<(u32, u32)>| size.map(|(w, h)| format!("{w}×{h}"));
+        let mut text = format!("Screen: {screen}");
+        if let Some(resolution) = size(self.screen) {
+            text.push_str(&format!(" {resolution}"));
         }
+        let decoder = if self.hevc_hdr10 || self.hevc_hdr10_plus {
+            "HEVC 10-bit with HDR"
+        } else if self.hevc_main10 {
+            "HEVC 10-bit"
+        } else {
+            "no HEVC 10-bit"
+        };
+        text.push_str(&format!(" · Decoder: {decoder}"));
+        let decodes: Vec<String> = [("H.264", self.h264_max), ("HEVC", self.hevc_max), ("VP9", self.vp9_max), ("AV1", self.av1_max)]
+            .into_iter()
+            .filter_map(|(name, max)| size(max).map(|max| format!("{name} up to {max}")))
+            .collect();
+        if !decodes.is_empty() {
+            text.push_str(&format!(" · {}", decodes.join(", ")));
+        }
+        text
     }
 }
 
@@ -492,7 +558,7 @@ pub fn display_hdr() -> DisplayHdr {
     if bits < 0 {
         return DisplayHdr::default();
     }
-    DisplayHdr {
+    let mut hdr = DisplayHdr {
         known: true,
         dolby_vision: bits & 1 != 0,
         hdr10: bits & 2 != 0,
@@ -500,7 +566,27 @@ pub fn display_hdr() -> DisplayHdr {
         hdr10_plus: bits & 8 != 0,
         screen_hdr: bits & 16 != 0,
         hevc_main10: bits & 32 != 0,
+        hevc_hdr10: bits & 64 != 0,
+        hevc_hdr10_plus: bits & 128 != 0,
+        dolby_vision_decoder: bits & 256 != 0,
+        ..DisplayHdr::default()
+    };
+    // The sizes: "screen w,h, H.264 w,h, HEVC w,h, VP9 w,h, AV1 w,h"; 0 is none.
+    let info = DISPLAY_INFO.lock().map(|info| info.clone()).unwrap_or_default();
+    let n: Vec<u32> = info.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+    if n.len() >= 10 {
+        let size = |i: usize| match (n[i], n[i + 1]) {
+            (w, h) if w > 0 && h > 0 => Some((w, h)),
+            _ => None,
+        };
+        hdr.decoders_known = true;
+        hdr.screen = size(0);
+        hdr.h264_max = size(2);
+        hdr.hevc_max = size(4);
+        hdr.vp9_max = size(6);
+        hdr.av1_max = size(8);
     }
+    hdr
 }
 
 #[cfg(target_arch = "wasm32")]

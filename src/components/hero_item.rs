@@ -14,6 +14,20 @@ use crate::media::{ImageType, Media, MediaType, RatingSource};
 use crate::tv_focus;
 use crate::ui::{self, tokens::{is_tv, is_wide, rating_star, secondary_text}};
 
+/// The button next to Play that was pressed last, of which title: the page reloads its title
+/// when it is favorited, watched or put on the watchlist, which makes its hero again, and the
+/// remote stays on that button instead of going back to Play.
+thread_local! {
+    static PRESSED: std::cell::Cell<Option<(uuid::Uuid, Side)>> = const { std::cell::Cell::new(None) };
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Side {
+    Favorite,
+    Watched,
+    Watchlist,
+}
+
 /// Where a hero item is.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum HeroKind {
@@ -35,14 +49,27 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
     let logo = server.image_url(&media, ImageType::Logo);
     let favorite = signal(media.is_favorite());
     let watched = signal(media.is_watched());
+    let watchlist = signal(media.is_watchlist());
     let play_ref = element_ref();
+    let (favorite_ref, watched_ref, watchlist_ref) = (element_ref(), element_ref(), element_ref());
     if is_tv() {
         focus.set_play(play_ref);
     }
     if autofocus && is_tv() {
+        // The button pressed before this title was loaded again, else Play.
+        let id = media.id;
+        let again = PRESSED.with(|pressed| pressed.take()).filter(|(pressed, _)| *pressed == id).map(|(_, side)| side);
+        let target = match again {
+            Some(Side::Favorite) => favorite_ref,
+            Some(Side::Watched) => watched_ref,
+            Some(Side::Watchlist) => watchlist_ref,
+            None => play_ref,
+        };
         // Once the window has the focus to give: a request while it is being made is lost.
-        set_timeout(std::time::Duration::from_millis(400), move || play_ref.focus());
+        set_timeout(std::time::Duration::from_millis(if again.is_some() { 60 } else { 400 }), move || target.focus());
     }
+    // The watchlist is Remux's: only a Remux server has it.
+    let remux = resource(|| Some(()), |(), _| async { Ok::<_, String>(crate::hooks::server().is_remux().await) });
 
     let wide = is_wide();
     let large = wide || is_tv();
@@ -55,6 +82,7 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
         let media = media.clone();
         let server = server.clone();
         move || {
+            PRESSED.with(|pressed| pressed.set(Some((media.id, Side::Favorite))));
             let now = !favorite.get_untracked();
             favorite.set(now);
             let (media, server) = (media.clone(), server.clone());
@@ -70,6 +98,7 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
         let media = media.clone();
         let server = server.clone();
         move || {
+            PRESSED.with(|pressed| pressed.set(Some((media.id, Side::Watched))));
             let now = !watched.get_untracked();
             watched.set(now);
             let (media, server) = (media.clone(), server.clone());
@@ -77,6 +106,22 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
                 if let Err(error) = server.set_watched(now, &media).await {
                     log::error!("watched: {error}");
                     watched.set(!now);
+                }
+            });
+        }
+    };
+    let toggle_watchlist = {
+        let media = media.clone();
+        let server = server.clone();
+        move || {
+            PRESSED.with(|pressed| pressed.set(Some((media.id, Side::Watchlist))));
+            let now = !watchlist.get_untracked();
+            watchlist.set(now);
+            let (media, server) = (media.clone(), server.clone());
+            spawn(async move {
+                if let Err(error) = server.set_watchlist(now, &media).await {
+                    log::error!("watchlist: {error}");
+                    watchlist.set(!now);
                 }
             });
         }
@@ -238,13 +283,26 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
                             move || if favorite.get() { Phosphor::HeartFill.src() } else { Phosphor::Heart.src() },
                             "Favorite",
                             toggle_favorite,
-                        ))
+                        ).element_ref(&favorite_ref))
                         .child(ui::icon_button(
                             size,
                             move || if watched.get() { Phosphor::CheckCircleFill.src() } else { Phosphor::CheckCircle.src() },
                             "Watched",
                             toggle_watched,
-                        ))
+                        ).element_ref(&watched_ref))
+                        // The watchlist where there is room (a TV, a wide screen; a phone has it in
+                        // More), on a Remux server.
+                        .child(large.then(|| {
+                            when(move || remux.get() == Some(true), move || {
+                                ui::icon_button(
+                                    size,
+                                    move || if watchlist.get() { Phosphor::BookmarkSimpleFill.src() } else { Phosphor::BookmarkSimple.src() },
+                                    "Watchlist",
+                                    toggle_watchlist.clone(),
+                                )
+                                .element_ref(&watchlist_ref)
+                            })
+                        }))
                         .child((large && kind == HeroKind::Home).then(|| ui::icon_button(size, Phosphor::Info, "More info", open.clone())))
                         // A phone has the rest in a sheet (Remux's More).
                         .child((!large).then(|| {

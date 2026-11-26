@@ -43,6 +43,16 @@ impl Music {
                     if let Ok(bits) = env.call_static_method(&info, "hdrBits", "(Landroid/content/Context;)I", &[JValue::Object(android.as_obj())]).and_then(|v| v.i()) {
                         crate::capabilities::set_display_hdr(bits);
                     }
+                    // And what its decoders take (the largest picture for each codec).
+                    match env.call_static_method(&info, "displayInfo", "(Landroid/content/Context;)Ljava/lang/String;", &[JValue::Object(android.as_obj())]).and_then(|v| v.l()) {
+                        Ok(text) => {
+                            let text: String = env.get_string(&text.into()).map(Into::into).unwrap_or_default();
+                            crate::capabilities::set_display_info(&text);
+                        }
+                        Err(_) => {
+                            let _ = env.exception_clear();
+                        }
+                    }
                     // Finding Chromecasts (a phone; `multicastLock` leaves a TV out).
                     if env.call_static_method(&info, "multicastLock", "(Landroid/content/Context;)V", &[JValue::Object(android.as_obj())]).is_err() {
                         let _ = env.exception_clear();

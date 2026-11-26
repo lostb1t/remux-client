@@ -62,7 +62,11 @@ public final class DeviceInfo {
             for (MediaCodecInfo info : new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos()) {
                 if (info.isEncoder()) continue;
                 boolean hevc = false;
-                for (String type : info.getSupportedTypes()) hevc |= type.equalsIgnoreCase("video/hevc");
+                for (String type : info.getSupportedTypes()) {
+                    hevc |= type.equalsIgnoreCase("video/hevc");
+                    // 256: a decoder for Dolby Vision itself (a file with no HDR10 layer under it).
+                    if (type.equalsIgnoreCase("video/dolby-vision")) bits |= 256;
+                }
                 if (!hevc) continue;
                 for (MediaCodecInfo.CodecProfileLevel level : info.getCapabilitiesForType("video/hevc").profileLevels) {
                     if (level.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10) bits |= 32;
@@ -74,5 +78,49 @@ public final class DeviceInfo {
             Log.w("Remux", "no HEVC info: " + e);
         }
         return bits;
+    }
+
+    /**
+     * The screen and what the video decoders in hardware take (Remux's `displayInfo`), as "screen
+     * width, height, H.264 width, height, HEVC width, height, VP9 width, height, AV1 width,
+     * height", in pixels with the long side first; 0 where it isn't known, which for a codec means
+     * the device has no decoder in hardware for it. A decoder's size is the largest of a few
+     * common ones it accepts.
+     */
+    public static String displayInfo(Context context) {
+        String screen = "0,0";
+        try {
+            WindowManager windows = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+            Display.Mode mode = windows.getDefaultDisplay().getMode();
+            screen = Math.max(mode.getPhysicalWidth(), mode.getPhysicalHeight()) + "," + Math.min(mode.getPhysicalWidth(), mode.getPhysicalHeight());
+        } catch (Throwable e) {
+            Log.w("Remux", "no size of the screen: " + e);
+        }
+        return screen + "," + decoder("video/avc") + "," + decoder("video/hevc") + "," + decoder("video/x-vnd.on2.vp9") + "," + decoder("video/av01");
+    }
+
+    private static String decoder(String mime) {
+        int width = 0, height = 0;
+        int[][] sizes = {{7680, 4320}, {3840, 2160}, {2560, 1440}, {1920, 1080}, {1280, 720}};
+        try {
+            for (MediaCodecInfo info : new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos()) {
+                if (info.isEncoder()) continue;
+                boolean takes = false;
+                for (String type : info.getSupportedTypes()) takes |= type.equalsIgnoreCase(mime);
+                if (!takes) continue;
+                if (Build.VERSION.SDK_INT >= 29 && info.isSoftwareOnly()) continue;
+                MediaCodecInfo.VideoCapabilities video = info.getCapabilitiesForType(mime).getVideoCapabilities();
+                if (video == null) continue;
+                for (int[] size : sizes) {
+                    if (video.isSizeSupported(size[0], size[1])) {
+                        if (size[0] > width) { width = size[0]; height = size[1]; }
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            Log.w("Remux", "no size of the decoders for " + mime + ": " + e);
+        }
+        return width + "," + height;
     }
 }
