@@ -97,10 +97,32 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # The emulator's system image (sdkmanager's package, as a path), kept between runs.
+      - name: Where the system image goes
+        id: image
+        run: echo "path=/usr/local/lib/android/sdk/${AVD_IMAGE//;//}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the system image
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.image.outputs.path }}
+          key: android-image-${{ matrix.kind }}-${{ env.AVD_IMAGE }}
+
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools emulator ${{ env.AVD_IMAGE }}
+
+      # The emulator booted once and saved (e2e/emulator.sh: a snapshot named `e2e`): it starts from
+      # there, without booting. Saved below, right after the first boot, before anything is on it.
+      - name: Restore the booted emulator
+        id: avd
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.kind }}-${{ env.AVD_IMAGE }}-${{ hashFiles('e2e/emulator.sh') }}
 
       - name: Install Maestro
         run: |
@@ -118,6 +140,15 @@ jobs:
           e2e/emulator.sh start
           # The keyboard that comes up for a text field would cover the page.
           adb shell settings put secure show_ime_with_hard_keyboard 0 || true
+
+      - name: Keep the booted emulator
+        if: ${{ steps.avd.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.kind }}-${{ env.AVD_IMAGE }}-${{ hashFiles('e2e/emulator.sh') }}
 
       - name: Install the app
         run: adb install -r -g build/remux.apk
@@ -165,7 +196,8 @@ jobs:
         uses: ./.github/actions/setup-nsh
         with:
           targets: wasm32-unknown-unknown
-          cache-key: web
+          # Not the web build's: `nsh test` builds other things (a host for the browser too).
+          cache-key: web-test
 
       # As in build-web.yml: a clang for WebAssembly (zstd) and the wasm-bindgen CLI the crate pins.
       - name: Install clang and the wasm-bindgen CLI

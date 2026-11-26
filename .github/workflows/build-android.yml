@@ -24,6 +24,17 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # The NDK (about 1 GB) and the build tools, kept between runs: setup-android then only finds
+      # them there.
+      - name: Cache the Android SDK's packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/ndk/27.3.13750724
+            /usr/local/lib/android/sdk/build-tools/36.0.0
+            /usr/local/lib/android/sdk/platforms/android-36
+          key: android-sdk-ndk27.3.13750724-bt36.0.0-p36
+
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
         with:

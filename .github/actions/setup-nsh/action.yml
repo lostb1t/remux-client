@@ -20,12 +20,13 @@ runs:
     # NSH builds the app for the machine it runs on too (its headless runner, the host of
     # `nsh test`, what it reads from the crate), which on Linux is its GTK runtime: GTK 4,
     # WebKitGTK and GStreamer with their development packages, and clang (nsh.dev, Installation).
+    # (Cached: the packages are kept between runs, keyed on the list and `version`.)
     - name: Install NSH's Linux libraries
       if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq libgtk-4-dev libwebkitgtk-6.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev clang
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: libgtk-4-dev libwebkitgtk-6.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev clang
+        version: "1"
 
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
