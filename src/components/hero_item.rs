@@ -14,9 +14,9 @@ use crate::media::{ImageType, Media, MediaType, RatingSource};
 use crate::tv_focus;
 use crate::ui::{self, tokens::{is_tv, is_wide, rating_star, secondary_text}};
 
-/// The button next to Play that was pressed last, of which title: the page reloads its title
-/// when it is favorited, watched or put on the watchlist, which makes its hero again, and the
-/// remote stays on that button instead of going back to Play.
+// The button next to Play that was pressed last, of which title: the page reloads its title
+// when it is favorited, watched or put on the watchlist, which makes its hero again, and the
+// remote stays on that button instead of going back to Play.
 thread_local! {
     static PRESSED: std::cell::Cell<Option<(uuid::Uuid, Side)>> = const { std::cell::Cell::new(None) };
 }

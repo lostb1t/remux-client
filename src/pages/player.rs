@@ -28,6 +28,19 @@ use crate::player::reporter::Reporter;
 use crate::player::stream::{self, ResolvedStream, SegmentKind};
 use crate::ui::{self, tokens::{is_tv, motion, scrim, track}};
 
+/// The web's volume, kept from one video to the next (Remux remembered it).
+#[derive(Clone, Copy, PartialEq)]
+struct WebVolume {
+    level: f64,
+    muted: bool,
+}
+
+impl Default for WebVolume {
+    fn default() -> Self {
+        Self { level: 1.0, muted: false }
+    }
+}
+
 /// What plays, if anything.
 #[derive(Clone, Default, PartialEq)]
 struct Playing(Option<Request>);
@@ -109,6 +122,8 @@ const SPEEDS: [f64; 6] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 const UP_NEXT_SECONDS: f64 = 30.0;
 /// A channel that stops is started again this often in a row, then it is given up on.
 const LIVE_RETRIES: u32 = 3;
+/// A channel whose picture has stood still this long (ms) is started again.
+const LIVE_STILL_MS: f64 = 15_000.0;
 
 /// The player, once for the app: in the shell, over everything.
 pub fn player_host() -> impl IntoElement {
@@ -170,13 +185,14 @@ fn player(request: Request) -> impl IntoElement {
                 let request = Request { start_ms: resume_at.with(|at| *at), ..request.clone() };
                 untracked(move || playback(item, resolved, request, device, playing_server, resume_at).into_element())
             }
-            (_, Some(error)) => failure(format!("Could not play it: {error}"), failed_request.clone()).into_element(),
+            (_, Some(error)) => failure(format!("Could not play it: {error}"), failed_request.clone(), None).into_element(),
             _ => view().flex_1().items_center().justify_center().child(ui::spinner()).into_element(),
         }))
 }
 
-/// What shows when it cannot play: why, a way to try again (from where it was), and a way out.
-fn failure(message: impl IntoReactive<SharedString>, retry: Request) -> impl IntoElement {
+/// What shows when it cannot play: why, a way to try again (from where it was), another version
+/// where there is a way to choose one (Remux), and a way out.
+fn failure(message: impl IntoReactive<SharedString>, retry: Request, other_version: Option<Rc<dyn Fn()>>) -> impl IntoElement {
     view()
         .absolute()
         .inset_0()
@@ -191,6 +207,7 @@ fn failure(message: impl IntoReactive<SharedString>, retry: Request) -> impl Int
                 .flex_row()
                 .gap_3()
                 .child(ui::text_button(ui::Variant::Primary, ui::Size::Regular, Phosphor::ArrowClockwise, "Retry", move || start(retry.clone())))
+                .child(other_version.map(|other| ui::text_button(ui::Variant::Secondary, ui::Size::Regular, Phosphor::FilmStrip, "Other version", move || other())))
                 .child(ui::text_button(ui::Variant::Secondary, ui::Size::Regular, Phosphor::X, "Close", stop)),
         )
 }
@@ -223,8 +240,13 @@ fn playback(
     let seeking = signal(false);
     let rate = signal(1.0f64);
     // The web's: a phone and a TV have keys for the volume.
-    let volume = signal(1.0f64);
-    let muted = signal(false);
+    let kept = global::<WebVolume>().get_untracked();
+    let volume = signal(kept.level);
+    let muted = signal(kept.muted);
+    effect(move || {
+        let now = WebVolume { level: volume.get(), muted: muted.get() };
+        untracked(|| global::<WebVolume>().set(now));
+    });
     // The subtitle shown: the one asked for, else the stream's (one drawn into the picture is
     // the stream's too).
     let subtitle = signal(request.subtitle.unwrap_or(resolved.subtitle));
@@ -245,17 +267,33 @@ fn playback(
     let subtitle_tracks: Vec<(i64, String, bool)> = resolved.subtitle_tracks.iter().map(|track| (track.index, track.label.clone(), track.burned)).collect();
     let subtitles_open = signal(false);
     let audio_open = signal(false);
+    let (audio_chosen, subtitle_chosen) = (element_ref(), element_ref());
     let options_open = signal(false);
     // The audio tracks, and the one that plays: the player picks one of the file it plays as it is;
     // for another, the server makes another stream, which plays on from where this one was.
     let audio_tracks: Vec<(i64, String, String)> = resolved.audio_tracks.iter().map(|track| (track.index, track.label.clone(), track.codec.clone())).collect();
     let current_audio = signal(resolved.audio);
     let direct = resolved.kind == StreamKind::Direct;
-    // This, again, from where it is now: for what only another stream can do.
-    let again = {
+    // This again, from where it is now, with the subtitle and the audio that play now (Remux:
+    // another stream of what plays keeps them): for a retry, and what only another stream can do.
+    let burned_now = request.burned;
+    let resume = {
         let request = request.clone();
-        move |change: &dyn Fn(&mut Request)| {
+        move || {
             let mut next = request.from(position.get_untracked() * 1000.0);
+            if burned_now.is_none() {
+                next.subtitle = Some(subtitle.get_untracked());
+            }
+            if let Some(audio) = current_audio.get_untracked() {
+                next.audio = Some(audio);
+            }
+            next
+        }
+    };
+    let again = {
+        let resume = resume.clone();
+        move |change: &dyn Fn(&mut Request)| {
+            let mut next = resume();
             change(&mut next);
             start(next);
         }
@@ -273,7 +311,6 @@ fn playback(
     };
     // A subtitle: one the player shows, or one the server draws into the picture (another
     // stream; and to leave one of those, another stream again).
-    let burned_now = request.burned;
     let pick_subtitle = {
         let again = again.clone();
         move |index: Option<i64>, burned: bool| {
@@ -476,7 +513,11 @@ fn playback(
 
     // How it plays, from ExoPlayer's snapshot, the web's `<video>` or the Chromecast's.
     let live_retries = stored(0u32);
+    // A channel whose picture stands still (its clock does not move while it plays): when, and
+    // where it stood (Remux started it again).
+    let still_since = stored(None::<(f64, f64)>);
     let on_state = {
+        let resume = resume.clone();
         let request = request.clone();
         Rc::new(move |state: &serde_json::Value| {
             let number = |key: &str| state.get(key).and_then(serde_json::Value::as_f64).unwrap_or(0.0);
@@ -493,7 +534,7 @@ fn playback(
                     && (error.contains("audio/eac3") || error.contains("audio/ac3"));
                 if dolby && !crate::capabilities::DOLBY_FAILED.swap(true, std::sync::atomic::Ordering::Relaxed) {
                     log::error!("this device fails on Dolby audio, asking for it transcoded: {error}");
-                    start(request.from(position.get_untracked() * 1000.0));
+                    start(resume());
                     return;
                 }
                 // A channel that stops is started again (the server ends a stream when its
@@ -518,6 +559,25 @@ fn playback(
                 duration.set(number("duration") / 1000.0);
             }
             buffering.set(flag("buffering"));
+            // A channel that stands still for a while is started again, as one that fails.
+            if live && started.get_untracked() && !paused.get_untracked() {
+                let (at, now) = (number("position"), nsh_core::time::unix_ms());
+                let moved = still_since.with(|still| match *still {
+                    Some((was, _)) if (was - at).abs() < 1.0 => false,
+                    _ => true,
+                });
+                if moved {
+                    still_since.with(|still| *still = Some((at, now)));
+                } else if still_since.with(|still| still.is_some_and(|(_, since)| now - since > LIVE_STILL_MS)) {
+                    still_since.with(|still| *still = None);
+                    if live_retries.with(|retries| *retries) < LIVE_RETRIES {
+                        live_retries.with(|retries| *retries += 1);
+                        log::error!("live channel stands still, starting it again");
+                        start(request.clone());
+                        return;
+                    }
+                }
+            }
             if flag("ready") && !started.get_untracked() {
                 started.set(true);
                 live_retries.with(|retries| *retries = 0);
@@ -825,7 +885,14 @@ fn playback(
                 })
             }
         })
-        .on_press(show_controls)
+        // A tap shows the controls, or hides them when they show (Remux); a TV's OK is its keys'.
+        .on_press(move || {
+            if controls.get_untracked() && !is_tv() && !paused.get_untracked() {
+                controls.set(false);
+            } else {
+                show_controls();
+            }
+        })
         .child(match casting.clone() {
             Some(device) => cast_screen(&item, device).into_element(),
             #[cfg(target_arch = "wasm32")]
@@ -986,11 +1053,15 @@ fn playback(
         .child(when(
             move || failed.get().is_some(),
             {
-                let request = request.clone();
-                move || failure(move || SharedString::from(format!("Could not play it: {}", failed.get().unwrap_or_default())), request.from(position.get_untracked() * 1000.0))
+                let resume = resume.clone();
+                move || {
+                    let other: Option<Rc<dyn Fn()>> = (!live).then(|| Rc::new(move || options_open.set(true)) as Rc<dyn Fn()>);
+                    failure(move || SharedString::from(format!("Could not play it: {}", failed.get().unwrap_or_default())), resume(), other)
+                }
             },
         ))
-        .child(ui::sheet(audio_open, "Audio", move || {
+        // The remote starts on what is chosen (Remux).
+        .child(ui::sheet_focusing(audio_open, "Audio", Some(audio_chosen), move || {
             let pick = pick_audio.clone();
             ui::menu_group(
                 audio_tracks
@@ -998,22 +1069,25 @@ fn playback(
                     .cloned()
                     .map(|(index, label, codec)| {
                         let pick = pick.clone();
-                        ui::menu_row((current_audio.get() == Some(index)).then_some(Phosphor::Check), label, false, move || pick(index, codec.clone()))
+                        let on = current_audio.get() == Some(index);
+                        ui::menu_row_at(on.then_some(audio_chosen), on.then_some(Phosphor::Check), label, false, move || pick(index, codec.clone()))
                     })
                     .collect(),
             )
         }))
-        .child(ui::sheet(subtitles_open, "Subtitles", move || {
+        .child(ui::sheet_focusing(subtitles_open, "Subtitles", Some(subtitle_chosen), move || {
             let pick = pick_subtitle.clone();
             let off = pick.clone();
-            let mut rows = vec![ui::menu_row(subtitle.get().is_none().then_some(Phosphor::Check), "Off", false, move || off(None, false))];
+            let none = subtitle.get().is_none();
+            let mut rows = vec![ui::menu_row_at(none.then_some(subtitle_chosen), none.then_some(Phosphor::Check), "Off", false, move || off(None, false))];
             for (index, label, burned) in subtitle_tracks_sheet.clone() {
                 let pick = pick.clone();
-                rows.push(ui::menu_row((subtitle.get() == Some(index)).then_some(Phosphor::Check), label, false, move || pick(Some(index), burned)));
+                let on = subtitle.get() == Some(index);
+                rows.push(ui::menu_row_at(on.then_some(subtitle_chosen), on.then_some(Phosphor::Check), label, false, move || pick(Some(index), burned)));
             }
             ui::menu_group(rows)
         }))
-        .child(options_sheet(options_open, rate, item.clone(), resolved.source_id, request.clone(), position))
+        .child(options_sheet(options_open, rate, item.clone(), resolved.source_id, resume.clone()))
 }
 
 /// The seek bar, with the time gone and the time left. On a TV a stop of its own (`me`), where the
@@ -1145,13 +1219,15 @@ fn volume_control(volume: Signal<f64>, muted: Signal<bool>) -> impl IntoElement 
 
 /// Speed and version (Remux's options menu, besides the audio and the subtitles, which have
 /// buttons of their own). Another version plays from where this one is.
-fn options_sheet(open: Signal<bool>, rate: Signal<f64>, item: Media, playing: uuid::Uuid, request: Request, position: Signal<f64>) -> impl IntoElement {
+fn options_sheet(open: Signal<bool>, rate: Signal<f64>, item: Media, playing: uuid::Uuid, resume: impl Fn() -> Request + Clone + 'static) -> impl IntoElement {
     let item_id = item.id;
+    let chosen = element_ref();
     let versions = resource(move || open.get().then_some(()), move |(), _| async move {
         server().media_sources(item_id).await.map_err(|error| error.to_string())
     });
-    ui::sheet(open, "Speed and version", move || {
-        let request = request.clone();
+    // The remote starts on the speed that plays (Remux).
+    ui::sheet_focusing(open, "Speed and version", Some(chosen), move || {
+        let resume = resume.clone();
         view()
             .gap_3()
             .child(ui::menu_heading("Speed"))
@@ -1161,7 +1237,8 @@ fn options_sheet(open: Signal<bool>, rate: Signal<f64>, item: Media, playing: uu
                     .map(|speed| {
                         let speed = *speed;
                         let label = if speed == 1.0 { "Normal".to_owned() } else { format!("{speed}×") };
-                        ui::menu_row(((rate.get() - speed).abs() < 0.01).then_some(Phosphor::Check), label, false, move || {
+                        let on = (rate.get() - speed).abs() < 0.01;
+                        ui::menu_row_at(on.then_some(chosen), on.then_some(Phosphor::Check), label, false, move || {
                             rate.set(speed);
                             open.set(false);
                         })
@@ -1173,7 +1250,7 @@ fn options_sheet(open: Signal<bool>, rate: Signal<f64>, item: Media, playing: uu
                 if list.len() < 2 {
                     return view().into_element();
                 }
-                let request = request.clone();
+                let resume = resume.clone();
                 view()
                     .gap_3()
                     .child(ui::menu_heading("Version"))
@@ -1182,11 +1259,12 @@ fn options_sheet(open: Signal<bool>, rate: Signal<f64>, item: Media, playing: uu
                             .map(|source| {
                                 let (title, detail) = (source.title(), source.subtitle().filter(|detail| *detail != source.title()));
                                 let on = source.id == playing;
-                                let request = request.clone();
+                                let resume = resume.clone();
                                 ui::menu_choice_checked(title, detail, on, move || {
                                     open.set(false);
                                     if !on {
-                                        let mut next = request.from(position.get_untracked() * 1000.0);
+                                        // The subtitle goes along (Remux); the audio is the version's own.
+                                        let mut next = resume();
                                         next.source = Some(source.clone());
                                         next.audio = None;
                                         next.burned = None;

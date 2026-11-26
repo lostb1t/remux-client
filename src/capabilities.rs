@@ -460,6 +460,7 @@ static DISPLAY_HDR: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32:
 /// The screen and the decoders' sizes (`DeviceInfo.displayInfo`), as its text.
 static DISPLAY_INFO: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub fn set_display_info(text: &str) {
     log::info!("display and decoders: {text}");
     if let Ok(mut info) = DISPLAY_INFO.lock() {

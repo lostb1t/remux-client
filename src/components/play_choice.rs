@@ -81,20 +81,29 @@ pub fn play_choice_host() -> impl IntoElement {
             };
             match versions {
                 None => view().items_center().py_6().child(ui::spinner()).into_element(),
-                Some(versions) => ui::menu_group(
-                    versions
-                        .into_iter()
-                        .map(|source| {
-                            let (title, detail) = (source.title(), source.subtitle().filter(|detail| *detail != source.title()));
-                            let media = media.clone();
-                            ui::menu_choice(title, detail, move || {
-                                choosing.set(Choosing(None));
-                                crate::pages::player::play_source(media.clone(), source.clone());
+                Some(versions) => {
+                    // A TV's remote on the first version, once they are there (the sheet put it
+                    // on its close button while they loaded, and the page under it took it back).
+                    let first = element_ref();
+                    if crate::ui::tokens::is_tv() {
+                        set_timeout(std::time::Duration::from_millis(150), move || first.focus());
+                    }
+                    ui::menu_group(
+                        versions
+                            .into_iter()
+                            .enumerate()
+                            .map(|(at, source)| {
+                                let (title, detail) = (source.title(), source.subtitle().filter(|detail| *detail != source.title()));
+                                let media = media.clone();
+                                ui::menu_choice_at((at == 0).then_some(first), title, detail, false, move || {
+                                    choosing.set(Choosing(None));
+                                    crate::pages::player::play_source(media.clone(), source.clone());
+                                })
                             })
-                        })
-                        .collect(),
-                )
-                .into_element(),
+                            .collect(),
+                    )
+                    .into_element()
+                }
             }
         }))
         .child(ui::sheet(cast_open, "Cast to", move || {

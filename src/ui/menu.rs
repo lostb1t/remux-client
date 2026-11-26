@@ -111,8 +111,18 @@ pub fn menu_note(note: impl IntoReactive<SharedString>) -> Text {
 /// A row of a choice: its name, what it is under it (a version's video, a device's model), and
 /// a check when it is the one chosen.
 pub fn menu_choice_checked(title: impl Into<SharedString>, detail: Option<String>, checked: bool, on_press: impl Fn() + 'static) -> AnyElement {
+    menu_choice_at(None, title, detail, checked, on_press)
+}
+
+/// A [`menu_choice_checked`] that `me` names (to give a remote's focus to).
+pub fn menu_choice_at(me: Option<ElementRef>, title: impl Into<SharedString>, detail: Option<String>, checked: bool, on_press: impl Fn() + 'static) -> AnyElement {
     let title: SharedString = title.into();
-    button()
+    let row = button();
+    let row = match me {
+        Some(me) => row.element_ref(&me),
+        None => row,
+    };
+    row
         .flex_row()
         .items_center()
         .gap_3()
@@ -137,7 +147,3 @@ pub fn menu_choice_checked(title: impl Into<SharedString>, detail: Option<String
         .into_element()
 }
 
-/// A row of a choice without a check.
-pub fn menu_choice(title: impl Into<SharedString>, detail: Option<String>, on_press: impl Fn() + 'static) -> AnyElement {
-    menu_choice_checked(title, detail, false, on_press)
-}

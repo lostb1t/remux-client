@@ -49,6 +49,8 @@ public final class ExoView extends FrameLayout {
     private volatile String state = "{}";
     private String error = "";
     private String cues = "";
+    /** Subtitles that are pictures (PGS and the like), drawn over the video. */
+    private final PictureCues pictures;
     private boolean loaded;
     /** The subtitle asked for (a stream index, or -1), applied as soon as the tracks are known. */
     private long wantedSubtitle = -1;
@@ -66,6 +68,9 @@ public final class ExoView extends FrameLayout {
         // The screen stays on while the picture shows.
         surface.setKeepScreenOn(true);
         addView(surface, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        // Subtitles that are pictures, over the video.
+        pictures = new PictureCues(context);
+        addView(pictures, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER));
         tick();
     }
 
@@ -80,6 +85,7 @@ public final class ExoView extends FrameLayout {
         }
         int x = (width - w) / 2, y = (height - h) / 2;
         surface.layout(x, y, x + w, y + h);
+        pictures.layout(x, y, x + w, y + h);
     }
 
     private ExoPlayer exo() {
@@ -140,6 +146,10 @@ public final class ExoView extends FrameLayout {
 
             @Override
             public void onCues(CueGroup group) {
+                int bitmaps = 0;
+                for (Cue cue : group.cues) if (cue.bitmap != null) bitmaps++;
+                Log.i(TAG, "cues " + group.cues.size() + " (pictures " + bitmaps + ") at " + (player != null ? player.getCurrentPosition() : -1));
+                pictures.show(group.cues);
                 StringBuilder text = new StringBuilder();
                 for (Cue cue : group.cues) {
                     if (cue.text == null) continue;
@@ -200,6 +210,7 @@ public final class ExoView extends FrameLayout {
             ExoPlayer p = exo();
             error = "";
             cues = "";
+            pictures.show(new ArrayList<>());
             wantedSubtitle = -1;
             wantedAudio = -1;
             p.setTrackSelectionParameters(p.getTrackSelectionParameters().buildUpon()
@@ -263,7 +274,10 @@ public final class ExoView extends FrameLayout {
     /** The subtitle with this stream index; a negative one hides them. */
     public void subtitle(long index) {
         wantedSubtitle = index;
-        if (index < 0) cues = "";
+        if (index < 0) {
+            cues = "";
+            pictures.show(new ArrayList<>());
+        }
         applySubtitle();
     }
 
