@@ -1,12 +1,21 @@
 name: Build Android
 
-# Builds the Android app, once: one APK for phones and TVs (arm64-v8a, armeabi-v7a, and x86_64 for
-# the emulator of the end-to-end tests). Other workflows use it by calling this one, and take the
-# `android-apk` artifact. Signed with the key of the repository's secrets when they are there, else
-# with NSH's debug key.
+# Builds the Android app, once: one APK for phones and TVs (arm64-v8a, armeabi-v7a), with x86_64
+# too when `emulator` says (the end-to-end tests' emulators; a release has no use for it, and it
+# is about 45 MB). Other workflows use it by calling this one, and take the `android-apk` artifact.
+# Signed with the key of the repository's secrets when they are there, else with NSH's debug key.
 on:
   workflow_call:
+    inputs:
+      emulator:
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      emulator:
+        description: Also for x86_64 (an emulator)
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -68,12 +77,13 @@ jobs:
         env:
           NSH_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ABIS: ${{ inputs.emulator && 'arm64-v8a,armeabi-v7a,x86_64' || 'arm64-v8a,armeabi-v7a' }}
         run: |
           set -euo pipefail
           export NDK_HOME="$ANDROID_HOME/ndk/27.3.13750724" ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.3.13750724"
           sign=()
           [ -n "${KEYSTORE:-}" ] && sign=(--keystore "$KEYSTORE" --key-alias "$ANDROID_KEY_ALIAS")
-          nsh package --target android --abi arm64-v8a,armeabi-v7a,x86_64 \
+          nsh package --target android --abi "$ABIS" \
             --build "$(git rev-list --count HEAD)" "${sign[@]}" -o out
           mkdir -p dist
           cp out/Remux.apk "dist/remux.apk"

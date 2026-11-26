@@ -33,6 +33,9 @@ jobs:
   build:
     if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     uses: ./.github/workflows/build-android.yml
+    # The emulators are x86_64.
+    with:
+      emulator: true
     secrets: inherit
 
   e2e:
