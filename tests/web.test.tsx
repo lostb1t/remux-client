@@ -17,6 +17,17 @@ const sizes = [
   { name: "phone", width: 390, height: 844 },
 ];
 
+/** Runs `steps` on `app`; when one fails, what was on screen goes to test-results/ (CI keeps
+ *  it), then the failure goes on. */
+async function shown(app: Awaited<ReturnType<typeof open>>, name: string, steps: () => Promise<void>) {
+  try {
+    await steps();
+  } catch (error) {
+    await app.screenshot(`test-results/${name.replace(/[^a-z0-9]+/gi, "-")}.png`).catch(() => {});
+    throw error;
+  }
+}
+
 /** The app, signed in at its login page, on Home. */
 async function signedIn(size: { width: number; height: number }) {
   const app = await open("..", { network: "live", width: size.width, height: size.height });
@@ -54,23 +65,25 @@ for (const size of sizes) {
 
   test(`plays The Matrix (${size.name})`, async () => {
     const app = await signedIn(size);
-    await app.press("id:tab-discover");
-    await app.type("id:search", "The Matrix");
-    await app.submit("id:search");
-    // The film: of the Movies row (the music has The Matrix too, first at a desktop's width).
-    const film = "id:results-movies >> label:/^The Matrix$/ >> nth=0";
-    await app.waitFor(film, { timeout: 20_000 });
-    await app.press(film);
-    await app.waitFor("id:page-back", { timeout: 15_000 });
-    await app.press(playButton);
-    // Which version: the first, by what its video says.
-    await app.waitFor("text:Version", { timeout: 15_000 });
-    const version = "text:/Direct Play|Direct Stream|Transcode/ >> nth=0";
-    await app.waitFor(version, { timeout: 30_000 });
-    await app.press(version);
-    await app.waitFor("label:Play or pause", { timeout: 60_000 });
-    await app.press("label:Close");
-    await app.waitFor("label:Play or pause", { state: "gone", timeout: 10_000 });
-    await app.waitFor("id:page-back");
+    await shown(app, `matrix-${size.name}`, async () => {
+      await app.press("id:tab-discover");
+      await app.type("id:search", "The Matrix");
+      await app.submit("id:search");
+      // The film: of the Movies row (the music has The Matrix too, first at a desktop's width).
+      const film = "id:results-movies >> label:/^The Matrix$/ >> nth=0";
+      await app.waitFor(film, { timeout: 20_000 });
+      await app.press(film);
+      await app.waitFor("id:page-back", { timeout: 15_000 });
+      await app.press(playButton);
+      // Which version: the first, by what its video says.
+      await app.waitFor("text:Version", { timeout: 30_000 });
+      const version = "text:/Direct Play|Direct Stream|Transcode/ >> nth=0";
+      await app.waitFor(version, { timeout: 30_000 });
+      await app.press(version);
+      await app.waitFor("label:Play or pause", { timeout: 60_000 });
+      await app.press("label:Close");
+      await app.waitFor("label:Play or pause", { state: "gone", timeout: 10_000 });
+      await app.waitFor("id:page-back");
+    });
   }, 180_000);
 }
