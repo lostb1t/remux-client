@@ -179,6 +179,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # A job that fails stops the rest of the run: its result is known, and the others would only
+      # take runners (and the nightly's release waits on all of them).
+      - name: Stop the rest of the run
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
+
       - name: Clean up
         if: ${{ always() }}
         run: e2e/emulator.sh stop
@@ -230,3 +238,11 @@ jobs:
           path: web-results.xml
           if-no-files-found: ignore
           retention-days: 7
+
+      # A job that fails stops the rest of the run: its result is known, and the others would only
+      # take runners (and the nightly's release waits on all of them).
+      - name: Stop the rest of the run
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"

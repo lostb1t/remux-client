@@ -38,7 +38,8 @@ on:
         default: '5'
 
 permissions:
-  actions: read
+  # write: the end-to-end tests cancel the run when one of them fails.
+  actions: write
   contents: write
   packages: write
 
