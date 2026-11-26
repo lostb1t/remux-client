@@ -68,6 +68,14 @@ pub fn live() -> AdaptiveColor {
 pub fn avatar() -> AdaptiveColor {
     color("avatar")
 }
+/// A subtitle's text over the video, and the edge around its letters (Remux: white with a black
+/// outline, readable on any picture without a box hiding it).
+pub fn subtitle() -> AdaptiveColor {
+    color("subtitle")
+}
+pub fn subtitle_edge() -> AdaptiveColor {
+    color("subtitle-edge")
+}
 /// The track of a progress bar.
 pub fn track() -> AdaptiveColor {
     color("track")

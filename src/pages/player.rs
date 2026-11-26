@@ -922,14 +922,21 @@ fn playback(
             move || !cues.with(String::is_empty),
             move || {
                 view().absolute().left_0().right_0().bottom(px(if controls.get() { 160.0 } else { 48.0 })).items_center().px_8().child(
+                    // White with a black edge around the letters, as Remux's subtitles were: NSH
+                    // has no stroke for text, so a shadow on every side (no offset, a little
+                    // blur) draws the edge.
                     text(move || cues.get())
                         .text_center()
-                        .text_size(px(if is_tv() { 30.0 } else { 20.0 }))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(theme().foreground)
-                        .px_2()
-                        .rounded_md()
-                        .bg(scrim()),
+                        .text_size(px(if is_tv() { 32.0 } else { 20.0 }))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(crate::ui::tokens::subtitle())
+                        .text_shadow([nsh_core::TextShadow {
+                            color: nsh_core::Color::BLACK,
+                            offset_x: nsh_core::geometry::Points(0.0),
+                            offset_y: nsh_core::geometry::Points(0.0),
+                            radius: nsh_core::geometry::Points(if is_tv() { 4.0 } else { 3.0 }),
+                        }])
+                        .text_shadow_color(crate::ui::tokens::subtitle_edge()),
                 )
             },
         ))

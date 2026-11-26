@@ -16,7 +16,9 @@ use nsh_core::prelude::*;
 use nsh_core::url_scheme::HistoryBehavior;
 
 use crate::media::MediaType;
-use crate::nav::{self, Place, Route};
+#[cfg(target_arch = "wasm32")]
+use crate::nav;
+use crate::nav::{Place, Route};
 
 #[cfg(target_arch = "wasm32")]
 /// The addresses of the browser's history that are the app's, and the one shown: the app's own
