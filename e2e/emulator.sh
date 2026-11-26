@@ -6,9 +6,6 @@
 #                            waits until it has booted
 #   e2e/emulator.sh stop
 #
-# Booted once, it is saved as the snapshot `e2e`, which CI keeps between runs: with it there, the
-# emulator starts from it instead of booting (seconds instead of minutes).
-#
 # The emulator gets 4 cores and 3 GB: with the picture drawn in software (there is no GPU) the
 # default of 2 cores leaves it too busy to answer adb now and then.
 #
@@ -36,44 +33,21 @@ case "${1:-start}" in
     fi
     # A session of its own (setsid): the emulator has to outlive the step that started it, and
     # nothing that cleans up after a step may take it along. How it ends goes in its log.
-    # From the snapshot when there is one (and never saved over: what the flows do stays out).
-    snapshot_dir="$ANDROID_AVD_HOME/$kind.avd/snapshots/e2e"
-    if [ -d "$snapshot_dir" ]; then
-      echo "starting from the snapshot"
-      # The snapshot trusts the adb key kept with it (~/.android/adbkey, restored with it): an adb
-      # server that started before the restore has another one, and the emulator answers it with
-      # "unauthorized".
-      adb kill-server >/dev/null 2>&1 || true
-      SNAPSHOT="-snapshot e2e -no-snapshot-save"; from_snapshot=1
-    else
-      SNAPSHOT="-no-snapshot-load -no-snapshot-save"; from_snapshot=0
-    fi
+    # The adb server first: it makes the key (~/.android/adbkey) the emulator gives the device as
+    # it boots. Started after the emulator, it made a key of its own now and then, and the device
+    # then answered it with "unauthorized".
+    adb start-server >/dev/null 2>&1
+    SNAPSHOT="-no-snapshot"
     AVD="$kind" SNAPSHOT="$SNAPSHOT" setsid nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd "$AVD" $SNAPSHOT -no-window -no-audio -no-boot-anim \
       -gpu swiftshader_indirect -accel on -cores 4 -memory 3072; echo "emulator ended with status $? at $(date -u +%T)"' \
       >> "$log" 2>&1 < /dev/null &
-    # Up to 10 minutes (from a snapshot, up to 3, then booted without it).
-    for at in $(seq 1 120); do
-      if [ "$from_snapshot" = 1 ] && [ "$at" = 36 ]; then
-        echo "not up from the snapshot: booting without it"
-        adb emu kill >/dev/null 2>&1 || true
-        sleep 5
-        rm -rf "$snapshot_dir"
-        # Its end in the log is the snapshot's, not the next start's.
-        mv "$log" "$log.snapshot" 2>/dev/null || true
-        exec "$0" start
-      fi
+    # Up to 10 minutes.
+    for _ in $(seq 1 120); do
       if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then
-        if [ "$from_snapshot" = 1 ]; then
-          adb wait-for-device
-          echo "the emulator is up (from the snapshot)"
-          exit 0
-        fi
         # Just booted, it is still busy starting its services, and the connection to it drops
         # while the first flow installs its driver. Give it a minute.
         sleep 45
         adb wait-for-device
-        # Saved as it is now, settled and with nothing on it, for the next start.
-        adb emu avd snapshot save e2e >/dev/null 2>&1 && echo "saved the snapshot e2e" || echo "could not save a snapshot"
         echo "the emulator has booted"
         exit 0
       fi
