@@ -1,8 +1,9 @@
 name: Build Desktop
 
 # The macOS, Windows and Linux apps (`nsh package`), each on a runner of its own system. Other
-# workflows use this one and take the `desktop-<os>` artifacts. The video and music players are
-# Android's and the web's for now (PLAN.md): on the desktops the app plays nothing yet.
+# workflows use this one and take the `desktop-<os>` artifacts. On a Mac the video player is mpv
+# (the `RemuxMpv` framework, built here and put into the app); on Windows and Linux the app plays
+# nothing yet (PLAN.md).
 on:
   workflow_call:
     inputs:
@@ -55,9 +56,27 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libgtk-4-dev clang libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
+      # mpv (MPVKit) and the Swift around it: the macOS video player, kept between runs (its
+      # source is the package and its pinned versions).
+      - name: Cache the mpv framework (macOS)
+        if: matrix.os == 'macos'
+        id: mpv
+        uses: actions/cache@v4
+        with:
+          path: macos/build/framework
+          key: remux-mpv-${{ hashFiles('macos/RemuxMpv/**') }}
+
+      - name: Build the mpv framework (macOS)
+        if: matrix.os == 'macos' && steps.mpv.outputs.cache-hit != 'true'
+        run: scripts/build-macos-framework.sh Release
+
       - name: Build the app
         shell: bash
         run: nsh package --target ${{ matrix.os }} -o out
+
+      - name: Put the mpv framework into the app (macOS)
+        if: matrix.os == 'macos'
+        run: scripts/bundle-macos-framework.sh out/Remux.app
 
       # One file per platform: the .app zipped (macOS), the zip and the .tar.gz nsh writes.
       - name: Collect the package

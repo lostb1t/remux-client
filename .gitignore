@@ -11,3 +11,6 @@ target/
 # The test server and user of the web tests (tests/web.test.tsx): written by CI from its secrets.
 /tests/test-server.ts
 /test-results/
+
+# The mpv framework of the macOS player, built by scripts/build-macos-framework.sh.
+/macos/build/

@@ -145,7 +145,9 @@ impl Capabilities {
             // The picture as it is where the screen shows HDR and the decoder takes it (HEVC 10
             // bits with HDR10 or HDR10+), unless it is turned off in the settings; else the
             // server makes it SDR (Remux's `hdr_output`).
-            supports_hdr: hdr.hdr_output() && !crate::settings::settings().hdr_off,
+            // On a Mac mpv maps HDR (and Dolby Vision) to what the screen shows itself (libplacebo),
+            // so the file plays as it is there too.
+            supports_hdr: (cfg!(target_os = "macos") || hdr.hdr_output()) && !crate::settings::settings().hdr_off,
             native: true,
             h264_max: hdr.h264_max,
             hevc_max: hdr.hevc_max,
@@ -335,10 +337,12 @@ impl Capabilities {
         // shows as well. A file that has only Dolby Vision (profile 5) needs a decoder for Dolby
         // Vision: a device with a Dolby Vision screen and such a decoder (an Android TV box, say)
         // plays it, as ExoPlayer takes that decoder; elsewhere it is left to the server.
-        let decodes_dolby_vision = cfg!(target_os = "android") && self.native && {
-            let hdr = display_hdr();
-            hdr.dolby_vision && hdr.dolby_vision_decoder
-        };
+        let decodes_dolby_vision = self.native
+            && (cfg!(target_os = "macos")
+                || (cfg!(target_os = "android") && {
+                    let hdr = display_hdr();
+                    hdr.dolby_vision && hdr.dolby_vision_decoder
+                }));
         let dolby_vision = dolby_vision || decodes_dolby_vision;
         let ranges = match (self.supports_hdr, dolby_vision) {
             (false, _) => "SDR",

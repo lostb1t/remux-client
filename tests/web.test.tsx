@@ -28,6 +28,24 @@ async function shown(app: Awaited<ReturnType<typeof open>>, name: string, steps:
   }
 }
 
+const places: Record<string, string> = {
+  "id:tab-home": "Home",
+  "id:tab-media": "Media",
+  "id:tab-discover": "Discover",
+  "id:tab-live-tv": "Live TV",
+};
+
+/** Goes to a place: with the tab bar (a phone's width), or through the menu at the top left (a
+ *  wide window, as a TV). */
+async function go(app: Awaited<ReturnType<typeof open>>, tab: string) {
+  if (app.count(tab) > 0) {
+    await app.press(tab);
+    return;
+  }
+  await app.press("label:Menu");
+  await app.press(`label:${places[tab]}`);
+}
+
 /** The app, signed in at its login page, on Home. */
 async function signedIn(size: { width: number; height: number }) {
   const app = await open("..", { network: "live", width: size.width, height: size.height });
@@ -43,13 +61,13 @@ async function signedIn(size: { width: number; height: number }) {
 for (const size of sizes) {
   test(`signs in, and goes through the places (${size.name})`, async () => {
     const app = await signedIn(size);
-    await app.press("id:tab-media");
+    await go(app, "id:tab-media");
     await app.waitFor("label:Favorites", { timeout: 15_000 });
-    await app.press("id:tab-discover");
+    await go(app, "id:tab-discover");
     await app.waitFor("text:Search", { timeout: 15_000 });
-    await app.press("id:tab-live-tv");
+    await go(app, "id:tab-live-tv");
     await app.waitFor("label:Channels", { timeout: 15_000 });
-    await app.press("id:tab-home");
+    await go(app, "id:tab-home");
     await app.waitFor(playButton, { timeout: 15_000 });
   }, 120_000);
 
@@ -68,7 +86,7 @@ for (const size of sizes) {
     // open twice.
     await app.press("id:page-back");
     await app.waitFor("id:page-back", { state: "gone", timeout: 5_000 });
-    await app.press("id:tab-media");
+    await go(app, "id:tab-media");
     await app.waitFor("label:Favorites", { timeout: 15_000 });
   }, 120_000);
 
@@ -84,7 +102,7 @@ for (const size of sizes) {
   test(`plays The Matrix (${size.name})`, async () => {
     const app = await signedIn(size);
     await shown(app, `matrix-${size.name}`, async () => {
-      await app.press("id:tab-discover");
+      await go(app, "id:tab-discover");
       await app.type("id:search", "The Matrix");
       await app.submit("id:search");
       // The film: of the Movies row (the music has The Matrix too, first at a desktop's width).

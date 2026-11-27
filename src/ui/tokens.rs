@@ -111,6 +111,13 @@ pub fn is_wide() -> bool {
     is_tv() || window().width.0 >= 1024.0
 }
 
+/// Whether the places are in the menu at the top left (the TV's: a pill that opens a panel), not
+/// in a tab bar at the bottom: a TV, and a wide window of a desktop or a browser. A phone keeps its
+/// tab bar, also turned on its side.
+pub fn has_menu() -> bool {
+    is_tv() || (!cfg!(any(target_os = "android", target_os = "ios")) && is_wide())
+}
+
 /// The room under a page's last row, so the tab bar does not cover it (`base`), and the music bar
 /// above it when something plays. Read in a binding: it grows when the music starts.
 pub fn bottom_room(base: f32) -> impl Fn() -> Points + Copy + 'static {

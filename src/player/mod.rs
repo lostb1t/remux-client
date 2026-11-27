@@ -4,6 +4,8 @@ pub mod api;
 pub mod engine;
 #[cfg(target_os = "android")]
 pub mod exo;
+#[cfg(target_os = "macos")]
+pub mod mpv_mac;
 pub mod reporter;
 #[cfg(target_arch = "wasm32")]
 pub mod shaka;

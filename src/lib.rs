@@ -51,6 +51,13 @@ fn components(components: &nsh::Components) {
     ui::spinner_android::register(components);
 }
 
+/// The app's own native components on a Mac: the video player (mpv).
+#[cfg(target_os = "macos")]
+#[native_components(macos)]
+fn components(components: &nsh_platform_macos::Components) {
+    player::mpv_mac::register(components);
+}
+
 /// The app's root: signs in, then shows the shell.
 #[component]
 pub fn App() -> impl IntoElement {

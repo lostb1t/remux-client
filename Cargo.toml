@@ -33,6 +33,8 @@ derive_more = { version = "2", features = ["debug"] }
 nsh-platform-linux = { version = "0.7.0", default-features = false, features = ["shader", "editor", "emoji-picker", "highlight", "math", "plot", "rich-editor", "term", "websocket", "updater", "svg", "net", "sound"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# The video player's framework (mpv), loaded as the player starts: `player/mpv_mac.rs`.
+libloading = "0.8"
 nsh-platform-macos = { version = "0.7.0", default-features = false, features = ["shader", "editor", "emoji-picker", "highlight", "math", "plot", "rich-editor", "term", "websocket", "updater", "svg"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]

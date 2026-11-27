@@ -109,6 +109,20 @@ fn stop() {
     }
 }
 
+/// Whether the player takes Remux's keys (space, k, j, l, the arrows, m, f, n, c, the digits):
+/// in a browser and on a desktop, which have a keyboard (a TV's remote has keys of its own).
+fn has_keyboard() -> bool {
+    cfg!(any(target_arch = "wasm32", target_os = "macos", target_os = "windows", target_os = "linux"))
+}
+
+/// The window (a desktop) or the page (the web) into full screen, or out of it.
+fn toggle_fullscreen() {
+    #[cfg(target_arch = "wasm32")]
+    crate::player::web::WebVideo::toggle_fullscreen();
+    #[cfg(target_os = "macos")]
+    crate::player::mpv_mac::toggle_fullscreen();
+}
+
 /// "1:02:03" or "2:03".
 fn clock(seconds: f64) -> String {
     let seconds = seconds.max(0.0) as i64;
@@ -725,11 +739,16 @@ fn playback(
                         play(episode);
                     }
                 }
+                // Escape closes the player, as in Remux (the key handler takes Escape before the
+                // app's back would).
+                "Escape" => {
+                    stop();
+                    return true;
+                }
                 "PageUp" if live => zap(1),
                 "PageDown" if live => zap(-1),
                 "f" | "F" => {
-                    #[cfg(target_arch = "wasm32")]
-                    crate::player::web::WebVideo::toggle_fullscreen();
+                    toggle_fullscreen();
                 }
                 // The subtitles in turn, then none.
                 "c" | "C" => {
@@ -755,14 +774,14 @@ fn playback(
     };
 
     // The remote's keys (and the web's) come to the player, not to the page under it.
-    if is_tv() || cfg!(target_arch = "wasm32") {
+    if is_tv() || has_keyboard() {
         set_timeout(Duration::from_millis(100), move || root.focus());
     }
     view()
         .element_ref(&root)
         .flex_1()
         .bg(theme().background)
-        .focusable(is_tv() || cfg!(target_arch = "wasm32"))
+        .focusable(is_tv() || has_keyboard())
         // A TV with the controls hidden: OK plays and pauses, left and right go 10 seconds (a
         // channel: to the one before or after), up and down show the controls or go to the
         // corner. With the controls showing the remote goes between them, as Android finds them.
@@ -877,7 +896,7 @@ fn playback(
                 })
             }
         })
-        .when(!is_tv() && cfg!(target_arch = "wasm32"), {
+        .when(!is_tv() && has_keyboard(), {
             let web_key = web_key.clone();
             move |v| {
                 v.on_key_down(move |event: &KeyEvent| {
@@ -898,7 +917,8 @@ fn playback(
             #[cfg(target_arch = "wasm32")]
             None => view().test_id(crate::player::web::HOST).absolute().inset_0().into_element(),
             #[cfg(not(target_arch = "wasm32"))]
-            None => native("remux.exo")
+            // ExoPlayer on Android, mpv on a Mac (`player/exo.rs`, `player/mpv_mac.rs`).
+            None => native(if cfg!(target_os = "macos") { "remux.mpv" } else { "remux.exo" })
                 .element_ref(&video_ref)
                 .absolute()
                 .inset_0()
@@ -907,6 +927,9 @@ fn playback(
                 .prop("subtitle", move || json!(subtitle.get().unwrap_or(-1)))
                 .prop("audio", move || json!(current_audio.get().unwrap_or(-1)))
                 .prop("rate", move || json!(rate.get()))
+                // mpv's (a Mac): a phone and a TV have keys for the volume.
+                .prop("volume", move || json!(volume.get()))
+                .prop("muted", move || json!(muted.get()))
                 .on_native_event({
                     let on_state = on_state.clone();
                     move |event: &NativeEvent| {
@@ -966,7 +989,7 @@ fn playback(
                             .child(text(title).flex_1().text_lg().font_weight(FontWeight::SEMIBOLD).number_of_lines(1).text_color(theme().foreground))
                             // The web: the volume and full screen (a phone and a TV have keys and a
                             // screen of their own).
-                            .child(cfg!(target_arch = "wasm32").then(|| volume_control(volume, muted)))
+                            .child(has_keyboard().then(|| volume_control(volume, muted)))
                             .child(has_audio_choice.then(|| round_button(Phosphor::SpeakerHigh, "Audio", move || audio_open.set(true)).element_ref(&audio_button)))
                             .child(has_subtitles.then(|| round_button(Phosphor::Subtitles, "Subtitles", move || subtitles_open.set(true)).element_ref(&subtitles_button)))
                             // Casting, from a phone, where there is a Chromecast to cast to.
@@ -975,12 +998,7 @@ fn playback(
                                 move || round_button(move || if crate::cast::active().is_some() { Phosphor::ScreencastFill.src() } else { Phosphor::Screencast.src() }, "Cast", crate::components::open_cast_sheet),
                             ))
                             .child(round_button(Phosphor::DotsThree, "Speed and version", move || options_open.set(true)).element_ref(&options_button))
-                            .child(cfg!(target_arch = "wasm32").then(|| {
-                                round_button(Phosphor::CornersOut, "Full screen", || {
-                                    #[cfg(target_arch = "wasm32")]
-                                    crate::player::web::WebVideo::toggle_fullscreen();
-                                })
-                            })),
+                            .child(has_keyboard().then(|| round_button(Phosphor::CornersOut, "Full screen", toggle_fullscreen))),
                     )
                     .child(
                         view()

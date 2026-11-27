@@ -129,7 +129,8 @@ pub fn shell() -> impl IntoElement {
                         .into_element()
                 })
         }))
-        .child(if is_tv() { tv_menu().into_element() } else { tab_bar().into_element() })
+        // The places: the menu at the top left (a TV, a wide window), else the tab bar at the bottom.
+        .child(dynamic(|| if crate::ui::tokens::has_menu() { untracked(|| tv_menu().into_element()) } else { untracked(|| tab_bar().into_element()) }))
         .child(crate::components::music_host())
         .child(crate::components::item_menu_host())
         .child(crate::components::play_choice_host())
