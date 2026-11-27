@@ -65,6 +65,9 @@ pub struct ResolvedStream {
     /// The audio track the stream plays, and the subtitle to start with.
     pub audio: Option<i64>,
     pub subtitle: Option<i64>,
+    /// The file is played as it is and its picture is Dolby Vision: ExoPlayer plays it on the
+    /// device's Dolby Vision decoder, tunneled, where it has one (`ExoView.load`).
+    pub dolby_vision: bool,
 }
 
 /// The answer of the server about how to play `source` of `item`: the version asked for.
@@ -293,6 +296,8 @@ pub async fn resolve(
         subtitle_tracks.iter().filter(|t| t.burned).count(),
         audio.or(media_source.default_audio_stream_index),
     );
+    let dolby_vision = matches!(method, PlayMethod::DirectPlay)
+        && media_source.media_streams.iter().any(|s| s.type_ == MediaStreamType::Video && s.dv_profile.is_some());
     Ok(ResolvedStream {
         item_id: item.id,
         source_id: media_source.id,
@@ -306,5 +311,6 @@ pub async fn resolve(
         audio_tracks,
         subtitle_tracks,
         segments,
+        dolby_vision,
     })
 }

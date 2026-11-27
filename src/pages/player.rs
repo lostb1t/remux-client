@@ -271,6 +271,7 @@ fn playback(
     let source = json!({
         "url": resolved.url,
         "startMs": start_ms,
+        "dolbyVision": resolved.dolby_vision,
         "hls": resolved.kind == StreamKind::Hls,
         "subtitles": resolved.subtitle_tracks.iter().filter(|track| !track.url.is_empty()).map(|track| json!({
             "index": track.index, "label": track.label, "language": track.language, "url": track.url,

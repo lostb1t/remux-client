@@ -24,6 +24,10 @@ import androidx.media3.common.text.CueGroup;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil;
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 
 import org.json.JSONArray;
@@ -60,6 +64,12 @@ public final class ExoView extends FrameLayout {
     private List<Long> audioOrder = new ArrayList<>();
     /** The subtitles the player reads from the file itself: stream index and ExoPlayer's kind. */
     private List<Object[]> fileSubtitles = new ArrayList<>();
+    private DefaultTrackSelector selector;
+    /**
+     * The screen shows Dolby Vision and a decoder of the device takes it (`DeviceInfo.hdrBits`):
+     * Dolby Vision is played on that decoder, else on the HEVC decoders ([#decoders]).
+     */
+    private static volatile boolean nativeDolbyVision;
 
     public ExoView(Context context) {
         super(context);
@@ -97,8 +107,14 @@ public final class ExoView extends FrameLayout {
                 .setConnectTimeoutMs(30_000)
                 .setReadTimeoutMs(90_000)
                 .setAllowCrossProtocolRedirects(true);
+        int hdr = DeviceInfo.hdrBits(context);
+        nativeDolbyVision = (hdr & 1) != 0 && (hdr & 256) != 0;
+        selector = new DefaultTrackSelector(context);
         ExoPlayer created = new ExoPlayer.Builder(context)
-                .setRenderersFactory(new DefaultRenderersFactory(context).setEnableDecoderFallback(true))
+                .setTrackSelector(selector)
+                .setRenderersFactory(new DefaultRenderersFactory(context)
+                        .setEnableDecoderFallback(true)
+                        .setMediaCodecSelector(ExoView::decoders))
                 .setMediaSourceFactory(new DefaultMediaSourceFactory(context).setDataSourceFactory(http))
                 .build();
         created.addListener(new Player.Listener() {
@@ -193,6 +209,21 @@ public final class ExoView extends FrameLayout {
         }
     }
 
+    /**
+     * The decoders ExoPlayer may use for a type. Dolby Vision on a device without a Dolby Vision
+     * screen and decoder goes to the HEVC decoders, which play the HDR10 layer under it (profiles 7
+     * and 8) as HDR10.
+     */
+    private static List<MediaCodecInfo> decoders(String mime, boolean secure, boolean tunneling)
+            throws MediaCodecUtil.DecoderQueryException {
+        if (MimeTypes.VIDEO_DOLBY_VISION.equals(mime) && !nativeDolbyVision) {
+            List<MediaCodecInfo> hevc = MediaCodecSelector.DEFAULT.getDecoderInfos(MimeTypes.VIDEO_H265, secure, tunneling);
+            Log.i(TAG, "Dolby Vision as HEVC: " + (hevc.isEmpty() ? "none" : hevc.get(0).name));
+            return hevc;
+        }
+        return MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling);
+    }
+
     /** What the app reads, from any thread: a JSON object of how playback goes. */
     public String snapshot() {
         return state;
@@ -218,6 +249,13 @@ public final class ExoView extends FrameLayout {
                     .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                     .build());
+            // Dolby Vision on the device's decoder goes through the chip's video path (tunneled
+            // playback): untunneled, MediaTek's (the XGIMI projector's) hands an app the picture as
+            // 8-bit SDR, as it has nowhere to send the Dolby Vision to; tunneled, the screen switches
+            // to Dolby Vision. Anything else plays untunneled. ExoPlayer tunnels only when the video
+            // and the audio decoder both can.
+            boolean tunnel = nativeDolbyVision && source.optBoolean("dolbyVision");
+            selector.setParameters(selector.buildUponParameters().setTunnelingEnabled(tunnel));
             audioOrder = new ArrayList<>();
             JSONArray order = source.optJSONArray("audioOrder");
             for (int i = 0; order != null && i < order.length(); i++) audioOrder.add(order.getLong(i));
@@ -240,7 +278,7 @@ public final class ExoView extends FrameLayout {
                         .build());
             }
             // The address without its query, which has the key to the server.
-            Log.i(TAG, "load " + source.getString("url").split("\\?")[0] + " hls=" + source.optBoolean("hls") + " start=" + source.optDouble("startMs", 0));
+            Log.i(TAG, "load " + source.getString("url").split("\\?")[0] + " hls=" + source.optBoolean("hls") + " start=" + source.optDouble("startMs", 0) + " tunneled=" + tunnel);
             MediaItem.Builder item = new MediaItem.Builder().setUri(source.getString("url")).setSubtitleConfigurations(configurations);
             // Said outright: the address of a playlist the server sends on has no .m3u8 in it.
             if (source.optBoolean("hls")) item.setMimeType(MimeTypes.APPLICATION_M3U8);

@@ -335,8 +335,10 @@ impl Capabilities {
         // With HDR on, the picture goes to the screen as it is. Dolby Vision files that have an
         // HDR10 (or HLG) layer to fall back on play as that, which a screen without Dolby Vision
         // shows as well. A file that has only Dolby Vision (profile 5) needs a decoder for Dolby
-        // Vision: a device with a Dolby Vision screen and such a decoder (an Android TV box, say)
-        // plays it, as ExoPlayer takes that decoder; elsewhere it is left to the server.
+        // Vision: mpv plays it (a Mac, Linux), and so does an Android device with a Dolby Vision
+        // screen and such a decoder (`ExoView`: its decoder, tunneled). Elsewhere ExoPlayer plays
+        // Dolby Vision on the HEVC decoders, which have only the layer under it, so a file with
+        // nothing under it is left to the server.
         let decodes_dolby_vision = self.native
             && (cfg!(any(target_os = "macos", target_os = "linux"))
                 || (cfg!(target_os = "android") && {

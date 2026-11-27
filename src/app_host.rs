@@ -18,7 +18,27 @@ static HOST: OnceLock<AppHost> = OnceLock::new();
 pub fn app_host() -> &'static AppHost {
     HOST.get_or_init(|| AppHost {
         device_id: crate::session::device_id(),
-        device_name: nsh_core::prelude::platform_name().to_owned(),
+        device_name: device_name(),
         remux_version: option_env!("REMUX_VERSION").unwrap_or(env!("CARGO_PKG_VERSION")).to_owned(),
     })
+}
+
+/// What the server lists the device as: on Android its model ("XGIMI X50 Ultra Max", as
+/// Remux's `whoami::devicename`), elsewhere the platform's name.
+fn device_name() -> String {
+    #[cfg(target_os = "android")]
+    {
+        let prop = |name: &str| {
+            std::process::Command::new("getprop")
+                .arg(name)
+                .output()
+                .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+                .unwrap_or_default()
+        };
+        let model = prop("ro.product.model");
+        if !model.is_empty() {
+            return model;
+        }
+    }
+    nsh_core::prelude::platform_name().to_owned()
 }
