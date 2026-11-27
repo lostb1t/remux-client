@@ -68,6 +68,25 @@ pub struct ResolvedStream {
     /// The file is played as it is and its picture is Dolby Vision: ExoPlayer plays it on the
     /// device's Dolby Vision decoder, tunneled, where it has one (`ExoView.load`).
     pub dolby_vision: bool,
+    /// The container of the version as the server names it: an HLS source (a live channel's
+    /// playlist) played as it is is `hls`.
+    pub container: Option<sdks::VideoContainer>,
+}
+
+impl ResolvedStream {
+    /// What the player is given is an HLS playlist: one the server makes, or a source that is one
+    /// played as it is.
+    pub fn is_playlist(&self) -> bool {
+        self.kind == StreamKind::Hls || self.container.as_ref().is_some_and(|c| c.is_hls_input())
+    }
+
+    /// As [`Self::is_playlist`], for a browser: a live channel played as it is whose container the
+    /// server does not know is taken as a playlist too, which a `<video>` of Chrome can't play
+    /// and Shaka can (a stream of MPEG-TS plays in neither).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub fn is_playlist_for_browser(&self, live: bool) -> bool {
+        self.is_playlist() || (live && self.kind == StreamKind::Direct && !self.container.as_ref().is_some_and(|c| c.is_known()))
+    }
 }
 
 /// The answer of the server about how to play `source` of `item`: the version asked for.
@@ -312,5 +331,6 @@ pub async fn resolve(
         subtitle_tracks,
         segments,
         dolby_vision,
+        container: media_source.container.clone(),
     })
 }

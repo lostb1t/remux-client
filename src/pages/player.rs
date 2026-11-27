@@ -272,7 +272,7 @@ fn playback(
         "url": resolved.url,
         "startMs": start_ms,
         "dolbyVision": resolved.dolby_vision,
-        "hls": resolved.kind == StreamKind::Hls,
+        "hls": resolved.is_playlist(),
         "subtitles": resolved.subtitle_tracks.iter().filter(|track| !track.url.is_empty()).map(|track| json!({
             "index": track.index, "label": track.label, "language": track.language, "url": track.url,
         })).collect::<Vec<_>>(),
@@ -621,7 +621,7 @@ fn playback(
     // read four times a second as ExoPlayer's snapshot is.
     #[cfg(target_arch = "wasm32")]
     if cast_engine.with(|engine| engine.is_none()) {
-        let (url, hls, tracks, shown) = (resolved.url.clone(), resolved.kind == StreamKind::Hls, resolved.subtitle_tracks.clone(), subtitle.get_untracked());
+        let (url, hls, tracks, shown) = (resolved.url.clone(), resolved.is_playlist_for_browser(live), resolved.subtitle_tracks.clone(), subtitle.get_untracked());
         let on_state = on_state.clone();
         let closing: Rc<std::cell::RefCell<Option<Rc<crate::player::web::WebVideo>>>> = Rc::default();
         let closing_at_end = closing.clone();
@@ -693,7 +693,7 @@ fn playback(
             language: track.language.clone(),
             url: track.url.clone(),
         }).collect();
-        engine.load(resolved.url.clone(), resolved.kind == StreamKind::Hls, start_ms, subtitles, subtitle.get_untracked());
+        engine.load(resolved.url.clone(), resolved.is_playlist(), start_ms, subtitles, subtitle.get_untracked());
         let poll = engine.clone();
         let on_state = on_state.clone();
         set_interval(Duration::from_millis(500), move || {
