@@ -2,8 +2,9 @@ name: Build Desktop
 
 # The macOS, Windows and Linux apps (`nsh package`), each on a runner of its own system. Other
 # workflows use this one and take the `desktop-<os>` artifacts. On a Mac the video player is mpv
-# (the `RemuxMpv` framework, built here and put into the app); on Windows and Linux the app plays
-# nothing yet (PLAN.md).
+# (the `RemuxMpv` framework, built here and put into the app); on Linux it is mpv too, the system's
+# libmpv (the `libmpv2` package), loaded as the player starts; on Windows the app plays nothing yet
+# (PLAN.md).
 on:
   workflow_call:
     inputs:
@@ -69,6 +70,27 @@ jobs:
       - name: Build the mpv framework (macOS)
         if: matrix.os == 'macos' && steps.mpv.outputs.cache-hit != 'true'
         run: scripts/build-macos-framework.sh Release
+
+      # The Linux player loads libmpv and libEGL when it starts (`src/player/mpv_linux.rs`), so the
+      # build does not need them; here the functions it loads are checked against Ubuntu's.
+      - name: Check the player's libmpv functions (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq libmpv2 libegl1
+          lib() { ldconfig -p | awk -v name="$1" '$1 == name { print $NF; exit }'; }
+          mpv=$(lib libmpv.so.2); egl=$(lib libEGL.so.1)
+          test -n "$mpv" && test -n "$egl"
+          missing=0
+          for symbol in $(grep -o 'b"[a-zA-Z_]*\\0"' src/player/mpv_linux.rs | sed 's/^b"//; s/\\0"$//' | sort -u); do
+            case "$symbol" in egl*) file=$egl ;; *) file=$mpv ;; esac
+            if nm -D --defined-only "$file" | awk '{ print $NF }' | grep -qx "$symbol"; then
+              echo "ok $symbol"
+            else
+              echo "::error::$symbol is not in $file"; missing=1
+            fi
+          done
+          exit $missing
 
       - name: Build the app
         shell: bash

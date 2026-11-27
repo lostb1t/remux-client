@@ -30,6 +30,9 @@ strum = "0.26.3"
 derive_more = { version = "2", features = ["debug"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# The video player's libmpv, loaded as the player starts: `player/mpv_linux.rs`.
+libloading = "0.8"
+libc = "0.2"
 nsh-platform-linux = { version = "0.7.0", default-features = false, features = ["shader", "editor", "emoji-picker", "highlight", "math", "plot", "rich-editor", "term", "websocket", "updater", "svg", "net", "sound"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]

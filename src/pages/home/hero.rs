@@ -53,7 +53,7 @@ pub fn hero(types: Vec<crate::media::MediaType>, on_open: impl Fn(Media) + Copy 
     let index = signal(0u32);
     view()
         .w_full()
-        .h(px(hero_height()))
+        .h(move || px(hero_height()))
         .bg(theme().background)
         // Pulled down to refresh on a phone: the carousel takes the drags that start on it, so
         // the page's own pull never starts there; a pull down of its own does what it would.
@@ -65,8 +65,14 @@ pub fn hero(types: Vec<crate::media::MediaType>, on_open: impl Fn(Media) + Copy 
             })
         })
         .child(when(move || items.get().is_none(), || ui::skeleton_box(relative(1.0).into(), relative(1.0).into()).rounded_none()))
-        .child(when(move || !list().is_empty(), move || {
-            if is_tv() { tv_hero(list, index, on_open).into_element() } else { swiped_hero(list, index, on_open).into_element() }
+        // Made again when the window goes from narrow to wide or back (a desktop's window): the
+        // items are laid out for one or the other.
+        .child(dynamic(move || {
+            let _wide = is_wide();
+            if list().is_empty() {
+                return view().into_element();
+            }
+            untracked(|| if is_tv() { tv_hero(list, index, on_open).into_element() } else { swiped_hero(list, index, on_open).into_element() })
         }))
 }
 
@@ -87,13 +93,14 @@ fn swiped_hero(list: impl Fn() -> Vec<Media> + Copy + 'static, index: Signal<u32
         .child(
             carousel_content()
                 .w_full()
-                .h(px(slide_height()))
+                // Read in a binding: it follows the window (a desktop's window that grows).
+                .h(move || px(slide_height()))
                 .children(items.into_iter().enumerate().map(move |(at, media)| {
                     // Sizes in points: a slide sized by percentages gets none in the carousel's
                     // scroll view.
                     carousel_item()
-                        .w(px(window().width.0))
-                        .h(px(slide_height()))
+                        .w(move || px(window().width.0))
+                        .h(move || px(slide_height()))
                         .accessibility_label(format!("{} of {count}: {}", at + 1, media.title))
                         .child(hero_item(media, HeroKind::Home, at == 0, on_open))
                 })),

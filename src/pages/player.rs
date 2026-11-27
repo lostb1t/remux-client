@@ -121,6 +121,8 @@ fn toggle_fullscreen() {
     crate::player::web::WebVideo::toggle_fullscreen();
     #[cfg(target_os = "macos")]
     crate::player::mpv_mac::toggle_fullscreen();
+    #[cfg(target_os = "linux")]
+    crate::player::mpv_linux::toggle_fullscreen();
 }
 
 /// "1:02:03" or "2:03".
@@ -406,8 +408,9 @@ fn playback(
         set_timeout(Duration::from_secs(5), move || {
             if touched.with(|touched| *touched) == this && !paused.get_untracked() && !options_open.get_untracked() {
                 controls.set(false);
-                // The remote's focus was in the controls, which are gone: back to the picture.
-                if is_tv() {
+                // The remote's (or the keyboard's) focus was in the controls, which are gone: back
+                // to the picture, which takes the keys.
+                if is_tv() || has_keyboard() {
                     root.focus();
                 }
             }
@@ -749,6 +752,9 @@ fn playback(
                 "PageDown" if live => zap(-1),
                 "f" | "F" => {
                     toggle_fullscreen();
+                    // The window changes its size, and the player its focus: the keys come back
+                    // to it.
+                    set_timeout(Duration::from_millis(500), move || root.focus());
                 }
                 // The subtitles in turn, then none.
                 "c" | "C" => {
@@ -779,6 +785,8 @@ fn playback(
     }
     view()
         .element_ref(&root)
+        // For the tests: a press on the picture.
+        .test_id("player")
         .flex_1()
         .bg(theme().background)
         .focusable(is_tv() || has_keyboard())
@@ -906,6 +914,11 @@ fn playback(
         })
         // A tap shows the controls, or hides them when they show (Remux); a TV's OK is its keys'.
         .on_press(move || {
+            // A desktop's keys go to the player after a click on the picture (the click itself
+            // leaves the focus nowhere).
+            if has_keyboard() && !is_tv() {
+                root.focus();
+            }
             if controls.get_untracked() && !is_tv() && !paused.get_untracked() {
                 controls.set(false);
             } else {
@@ -917,8 +930,9 @@ fn playback(
             #[cfg(target_arch = "wasm32")]
             None => view().test_id(crate::player::web::HOST).absolute().inset_0().into_element(),
             #[cfg(not(target_arch = "wasm32"))]
-            // ExoPlayer on Android, mpv on a Mac (`player/exo.rs`, `player/mpv_mac.rs`).
-            None => native(if cfg!(target_os = "macos") { "remux.mpv" } else { "remux.exo" })
+            // ExoPlayer on Android, mpv on a Mac and on Linux (`player/exo.rs`, `player/mpv_mac.rs`,
+            // `player/mpv_linux.rs`).
+            None => native(if cfg!(any(target_os = "macos", target_os = "linux")) { "remux.mpv" } else { "remux.exo" })
                 .element_ref(&video_ref)
                 .absolute()
                 .inset_0()
@@ -998,7 +1012,12 @@ fn playback(
                                 move || round_button(move || if crate::cast::active().is_some() { Phosphor::ScreencastFill.src() } else { Phosphor::Screencast.src() }, "Cast", crate::components::open_cast_sheet),
                             ))
                             .child(round_button(Phosphor::DotsThree, "Speed and version", move || options_open.set(true)).element_ref(&options_button))
-                            .child(has_keyboard().then(|| round_button(Phosphor::CornersOut, "Full screen", toggle_fullscreen))),
+                            .child(has_keyboard().then(|| {
+                                round_button(Phosphor::CornersOut, "Full screen", move || {
+                                    toggle_fullscreen();
+                                    set_timeout(Duration::from_millis(500), move || root.focus());
+                                })
+                            })),
                     )
                     .child(
                         view()

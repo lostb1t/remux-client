@@ -52,6 +52,7 @@ jobs:
           mkdir upload
           for file in build/*; do
             case "${file##*/}" in
+              *.tar.gz) ext=".tar.gz" ;;
               *.*) ext=".${file##*.}" ;;
               *) ext="" ;;
             esac

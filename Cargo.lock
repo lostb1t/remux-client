@@ -2834,6 +2834,7 @@ dependencies = [
  "futures",
  "http",
  "js-sys",
+ "libc",
  "libloading",
  "log",
  "mdns-sd",

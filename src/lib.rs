@@ -58,6 +58,13 @@ fn components(components: &nsh_platform_macos::Components) {
     player::mpv_mac::register(components);
 }
 
+/// The app's own native components on Linux: the video player (mpv).
+#[cfg(target_os = "linux")]
+#[native_components(linux)]
+fn components(components: &nsh_platform_linux::Components) {
+    player::mpv_linux::register(components);
+}
+
 /// The app's root: signs in, then shows the shell.
 #[component]
 pub fn App() -> impl IntoElement {

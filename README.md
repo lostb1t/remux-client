@@ -81,7 +81,8 @@ the platform and the commit they were made from: `remux-android-<commit>.apk`,
 | --- | --- |
 | Android (phone and TV) | [Releases](../../releases), kept up to date with Obtainium (below) |
 | Web | Hosted at <https://app.remux.media>, as a Docker image, or as a zip (below) |
-| iOS, macOS, Windows, Linux | Not yet: their players are still to come |
+| macOS, Linux | [Releases](../../releases): `remux-macos-<commit>.zip`, `remux-linux-<commit>.tar.gz` (Linux needs mpv's library: `sudo apt install libmpv2`) |
+| iOS, Windows | Not yet: their players are still to come |
 
 The hosted version only works for servers that are behind a reverse proxy and have HTTPS set up
 correctly. If your server runs over HTTP, host the app yourself.

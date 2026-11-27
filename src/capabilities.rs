@@ -77,7 +77,7 @@ impl Capabilities {
         if !self.native {
             return false;
         }
-        if cfg!(any(target_os = "ios", target_os = "macos", windows_mpv)) {
+        if cfg!(any(target_os = "ios", target_os = "macos", target_os = "linux", windows_mpv)) {
             return true;
         }
         cfg!(target_os = "android")
@@ -91,7 +91,7 @@ impl Capabilities {
         if !self.native {
             return false;
         }
-        if cfg!(any(target_os = "ios", target_os = "macos", windows_mpv)) {
+        if cfg!(any(target_os = "ios", target_os = "macos", target_os = "linux", windows_mpv)) {
             return true;
         }
         cfg!(target_os = "android")
@@ -108,7 +108,7 @@ impl Capabilities {
         if !self.native {
             return false;
         }
-        if cfg!(any(target_os = "ios", target_os = "macos", windows_mpv)) {
+        if cfg!(any(target_os = "ios", target_os = "macos", target_os = "linux", windows_mpv)) {
             return true;
         }
         let codec = codec.to_lowercase();
@@ -145,9 +145,9 @@ impl Capabilities {
             // The picture as it is where the screen shows HDR and the decoder takes it (HEVC 10
             // bits with HDR10 or HDR10+), unless it is turned off in the settings; else the
             // server makes it SDR (Remux's `hdr_output`).
-            // On a Mac mpv maps HDR (and Dolby Vision) to what the screen shows itself (libplacebo),
+            // On a Mac and on Linux mpv maps HDR (and Dolby Vision) to what the screen shows itself,
             // so the file plays as it is there too.
-            supports_hdr: (cfg!(target_os = "macos") || hdr.hdr_output()) && !crate::settings::settings().hdr_off,
+            supports_hdr: (cfg!(any(target_os = "macos", target_os = "linux")) || hdr.hdr_output()) && !crate::settings::settings().hdr_off,
             native: true,
             h264_max: hdr.h264_max,
             hevc_max: hdr.hevc_max,
@@ -338,7 +338,7 @@ impl Capabilities {
         // Vision: a device with a Dolby Vision screen and such a decoder (an Android TV box, say)
         // plays it, as ExoPlayer takes that decoder; elsewhere it is left to the server.
         let decodes_dolby_vision = self.native
-            && (cfg!(target_os = "macos")
+            && (cfg!(any(target_os = "macos", target_os = "linux"))
                 || (cfg!(target_os = "android") && {
                     let hdr = display_hdr();
                     hdr.dolby_vision && hdr.dolby_vision_decoder

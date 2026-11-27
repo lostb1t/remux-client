@@ -66,7 +66,8 @@ installs over the old app.
 
 - **iOS**: a video player (Remux's `RemuxMpv` framework as a native component) and music (AVPlayer);
   until then the iOS build plays nothing.
-- **Desktop** (macOS, Windows, Linux): a video player (mpv, as Remux) and music.
+- **Desktop**: Windows's video player (mpv, as on macOS and Linux); music on all three; Linux on
+  x86_64 is built but only tested on arm64.
 - **Web**: music (Remux's `music/web.rs`, an `<audio>` with the Media Session API).
 - **TV**: the music bar cannot be reached with the remote yet; the hero's crossfade.
 - **Player**:
