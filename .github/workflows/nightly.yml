@@ -25,9 +25,9 @@ on:
         type: boolean
         default: false
       desktop:
-        description: Build the macOS, Windows and Linux apps (no player yet), and put them on the release
+        description: Build the macOS, Windows and Linux apps (Windows has no player yet), and put them on the release
         type: boolean
-        default: false
+        default: true
       release_tag:
         description: The tag, and the name, of the release; by default one of its own for each build
         type: string
