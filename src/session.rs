@@ -58,14 +58,86 @@ pub fn now_ms() -> f64 {
     nsh_core::time::unix_ms() as f64
 }
 
+/// What is shared with the server's dashboard and Jellyfin Web, served from the same address: on
+/// the web their keys as they are in `localStorage`, which NSH's storage keeps under a prefix of
+/// the app's (`nsh:<app id>:`), so the dashboard's session is not in it. Elsewhere NSH's storage.
+pub(crate) mod shared {
+    #[cfg(target_arch = "wasm32")]
+    fn local() -> Option<web_sys::Storage> {
+        web_sys::window()?.local_storage().ok().flatten()
+    }
+
+    pub fn get(key: &str) -> Option<String> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            // What the app kept under its prefix before it was kept here comes along.
+            local()
+                .and_then(|storage| storage.get_item(key).ok().flatten())
+                .filter(|text| !text.is_empty())
+                .or_else(|| super::store::get(key))
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            super::store::get(key)
+        }
+    }
+
+    pub fn set(key: &str, value: &str) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            match local().map(|storage| storage.set_item(key, value)) {
+                Some(Ok(())) => super::store::remove(key),
+                _ => log::error!("could not keep {key}"),
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        super::store::set(key, value)
+    }
+
+    pub fn remove(key: &str) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(storage) = local() {
+            storage.remove_item(key).ok();
+        }
+        super::store::remove(key);
+    }
+
+    /// Calls `changed` when another tab changes `key` (the dashboard signs in or out). NSH's
+    /// storage reports only the keys under its prefix, so this listens to the page itself.
+    pub fn on_change(key: &'static str, changed: impl Fn() + 'static) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            use wasm_bindgen::{closure::Closure, JsCast};
+            let Some(window) = web_sys::window() else { return };
+            let listener = Closure::<dyn Fn(web_sys::StorageEvent)>::new(move |event: web_sys::StorageEvent| {
+                // No key: the whole of `localStorage` was cleared.
+                if event.key().is_none_or(|changed_key| changed_key == key) {
+                    changed();
+                }
+            });
+            window.add_event_listener_with_callback("storage", listener.as_ref().unchecked_ref()).ok();
+            listener.forget();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = (key, changed);
+    }
+}
+
 /// The address the page was served from, where there is one: a web build served by the server
-/// itself signs in to it. Not yet in this app.
+/// itself signs in to it, as the dashboard did.
 fn origin() -> Option<String> {
-    None
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window()?.location().origin().ok()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        None
+    }
 }
 
 fn read_root() -> Value {
-    store::get(CREDENTIALS_KEY)
+    shared::get(CREDENTIALS_KEY)
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .filter(Value::is_object)
         .unwrap_or_else(|| json!({ "Servers": [] }))
@@ -141,7 +213,7 @@ pub fn save(session: &Stored) {
     entry["AccessToken"] = json!(session.token);
     entry["UserName"] = json!(session.username);
     entry["DateLastAccessed"] = json!(now_ms());
-    store::set(CREDENTIALS_KEY, &root.to_string());
+    shared::set(CREDENTIALS_KEY, &root.to_string());
 }
 
 /// Ends the session: the server is taken out of the list.
@@ -153,9 +225,9 @@ pub fn clear(session: &Stored) {
                 || same_address(&text(entry, "ManualAddress"), &session.address))
         });
         if servers.is_empty() {
-            store::remove(CREDENTIALS_KEY);
+            shared::remove(CREDENTIALS_KEY);
         } else {
-            store::set(CREDENTIALS_KEY, &root.to_string());
+            shared::set(CREDENTIALS_KEY, &root.to_string());
         }
     }
 }
@@ -233,18 +305,21 @@ pub fn forget(session: &Stored) {
 
 /// The id of this device, made once: the same for every part of the app that is served from here.
 pub fn device_id() -> String {
-    if let Some(id) = store::get(DEVICE_ID_KEY).or_else(|| store::get(DASHBOARD_DEVICE_ID_KEY)) {
-        store::set(DEVICE_ID_KEY, &id);
+    if let Some(id) = shared::get(DEVICE_ID_KEY).or_else(|| shared::get(DASHBOARD_DEVICE_ID_KEY)) {
+        shared::set(DEVICE_ID_KEY, &id);
         return id;
     }
     let id = Uuid::new_v4().to_string();
-    store::set(DEVICE_ID_KEY, &id);
+    shared::set(DEVICE_ID_KEY, &id);
     id
 }
 
 /// Calls `changed` when another part of the app (another tab of the web build) changes the
 /// session.
 pub fn on_change(changed: impl Fn() + 'static) {
+    let changed = std::rc::Rc::new(changed);
+    let elsewhere = changed.clone();
+    shared::on_change(CREDENTIALS_KEY, move || elsewhere());
     nsh_core::storage::Storage::on_change(move |change| {
         if change.key().is_none_or(|key| key == CREDENTIALS_KEY) {
             changed();
