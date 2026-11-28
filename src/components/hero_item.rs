@@ -278,30 +278,32 @@ pub fn hero_item(media: Media, kind: HeroKind, autofocus: bool, on_open: impl Fn
                                 )
                                 .child(crate::components::cast_part(if large { 44.0 } else { 40.0 })),
                         )
-                        .child(ui::icon_button(
-                            size,
-                            move || if favorite.get() { Phosphor::HeartFill.src() } else { Phosphor::Heart.src() },
-                            "Favorite",
-                            toggle_favorite,
-                        ).element_ref(&favorite_ref))
+                        // The watchlist next to Play, on a Remux server (only it has one).
+                        .child(when(move || remux.get() == Some(true), move || {
+                            ui::icon_button(
+                                size,
+                                move || if watchlist.get() { Phosphor::BookmarkSimpleFill.src() } else { Phosphor::BookmarkSimple.src() },
+                                "Watchlist",
+                                toggle_watchlist.clone(),
+                            )
+                            .element_ref(&watchlist_ref)
+                        }))
                         .child(ui::icon_button(
                             size,
                             move || if watched.get() { Phosphor::CheckCircleFill.src() } else { Phosphor::CheckCircle.src() },
                             "Watched",
                             toggle_watched,
                         ).element_ref(&watched_ref))
-                        // The watchlist where there is room (a TV, a wide screen; a phone has it in
-                        // More), on a Remux server.
-                        .child(large.then(|| {
-                            when(move || remux.get() == Some(true), move || {
-                                ui::icon_button(
-                                    size,
-                                    move || if watchlist.get() { Phosphor::BookmarkSimpleFill.src() } else { Phosphor::BookmarkSimple.src() },
-                                    "Watchlist",
-                                    toggle_watchlist.clone(),
-                                )
-                                .element_ref(&watchlist_ref)
-                            })
+                        // Favorite where there is room (a TV, a wide screen); a phone has it in More,
+                        // unless the server has no watchlist to show in its place.
+                        .child(when(move || large || remux.get() != Some(true), move || {
+                            ui::icon_button(
+                                size,
+                                move || if favorite.get() { Phosphor::HeartFill.src() } else { Phosphor::Heart.src() },
+                                "Favorite",
+                                toggle_favorite.clone(),
+                            )
+                            .element_ref(&favorite_ref)
                         }))
                         .child((large && kind == HeroKind::Home).then(|| ui::icon_button(size, Phosphor::Info, "More info", open.clone())))
                         // A phone has the rest in a sheet (Remux's More).
